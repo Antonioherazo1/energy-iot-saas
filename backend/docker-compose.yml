@@ -1,0 +1,46 @@
+services:
+  api:
+    build: .
+    container_name: energy_iot_api
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      MQTT_ENABLED: "true"
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      - postgres
+      - mosquitto
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: energy_iot_postgres
+    environment:
+      POSTGRES_DB: energy_iot
+      POSTGRES_USER: energy_iot
+      POSTGRES_PASSWORD: change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: energy_iot_mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mosquitto_data:
+  mosquitto_log:
