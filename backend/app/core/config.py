@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     mqtt_username: str | None = None
     mqtt_password: str | None = None
     mqtt_topic: str = "devices/+/telemetry"
+    assumed_voltage: int = 110
+    esp32_topic: str = "energía/datos"
 
     db_pool_size: int = 5
     db_max_overflow: int = 5

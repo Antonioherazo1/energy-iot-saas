@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 from pydantic import ValidationError
@@ -31,17 +32,78 @@ class MQTTService:
     def _on_connect(self, client: mqtt.Client, userdata, flags, reason_code, properties) -> None:
         if reason_code == 0:
             client.subscribe(settings.mqtt_topic, qos=0)
-            logger.info("MQTT connected and subscribed to %s", settings.mqtt_topic)
+            client.subscribe(settings.esp32_topic, qos=0)
+            logger.info("MQTT connected, subscribed to %s and %s", settings.mqtt_topic, settings.esp32_topic)
         else:
             logger.warning("MQTT connection failed: %s", reason_code)
 
+    def _parse_esp32_payload(self, payload_dict: dict) -> tuple[str, TelemetryIn] | None:
+        device_id = payload_dict.get("device_id", "")
+        if not device_id:
+            return None
+
+        ch1 = float(payload_dict.get("ch1", 0))
+        ch2 = float(payload_dict.get("ch2", 0))
+        ch3 = float(payload_dict.get("ch3", 0))
+        ch4 = float(payload_dict.get("ch4", 0))
+        total_current = ch1 + ch2 + ch3 + ch4
+
+        timestamp_str = payload_dict.get("timestamp", "")
+        if timestamp_str and ":" in timestamp_str and len(timestamp_str) <= 8:
+            parts = timestamp_str.split(":")
+            now = datetime.now(timezone.utc)
+            try:
+                recorded_at = now.replace(
+                    hour=int(parts[0]),
+                    minute=int(parts[1]),
+                    second=int(parts[2]) if len(parts) > 2 else 0,
+                    microsecond=0,
+                )
+            except (ValueError, IndexError):
+                recorded_at = now
+        elif timestamp_str:
+            try:
+                recorded_at = datetime.fromisoformat(timestamp_str)
+            except (ValueError, TypeError):
+                recorded_at = datetime.now(timezone.utc)
+        else:
+            recorded_at = datetime.now(timezone.utc)
+
+        voltage = settings.assumed_voltage
+
+        telemetry = TelemetryIn(
+            voltage=voltage,
+            current=total_current,
+            power=total_current * voltage,
+            energy_kwh=None,
+            frequency=None,
+            power_factor=None,
+            device_key=None,
+            recorded_at=recorded_at,
+        )
+        return device_id, telemetry
+
     def _on_message(self, client: mqtt.Client, userdata, message: mqtt.MQTTMessage) -> None:
         try:
-            device_code = message.topic.split("/")[1]
-            payload = TelemetryIn(**json.loads(message.payload.decode("utf-8")))
-        except (IndexError, json.JSONDecodeError, UnicodeDecodeError, ValidationError) as exc:
-            logger.warning("Invalid MQTT telemetry payload: %s", exc)
+            payload_dict = json.loads(message.payload.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            logger.warning("Invalid MQTT payload: %s", exc)
             return
+
+        topic = message.topic
+
+        if topic == settings.esp32_topic:
+            result = self._parse_esp32_payload(payload_dict)
+            if result is None:
+                return
+            device_code, payload = result
+        else:
+            try:
+                device_code = topic.split("/")[1]
+                payload = TelemetryIn(**payload_dict)
+            except (IndexError, ValidationError) as exc:
+                logger.warning("Invalid MQTT message on %s: %s", topic, exc)
+                return
 
         with SessionLocal() as db:
             try:
