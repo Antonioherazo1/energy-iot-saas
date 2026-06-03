@@ -30,10 +30,12 @@ class MQTTService:
         self.client.disconnect()
 
     def _on_connect(self, client: mqtt.Client, userdata, flags, reason_code, properties) -> None:
+        print(f"[MQTT] _on_connect called, reason_code={reason_code}", flush=True)
         if reason_code == 0:
             client.subscribe(settings.mqtt_topic, qos=0)
             client.subscribe(settings.esp32_topic, qos=0)
-            logger.info("MQTT connected, subscribed to %s and %s", settings.mqtt_topic, settings.esp32_topic)
+            print(f"[MQTT] Subscribed to {settings.mqtt_topic} and {settings.esp32_topic}", flush=True)
+            logger.info("MQTT connected and subscribed")
         else:
             logger.warning("MQTT connection failed: %s", reason_code)
 

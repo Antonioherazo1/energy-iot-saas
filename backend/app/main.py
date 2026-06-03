@@ -12,9 +12,13 @@ from app.websockets.manager import websocket_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("[lifespan] Setting up WebSocket loop...", flush=True)
     websocket_manager.set_loop(asyncio.get_running_loop())
+    print(f"[lifespan] MQTT enabled: {settings.mqtt_enabled}", flush=True)
     if settings.mqtt_enabled:
+        print("[lifespan] Starting MQTT service...", flush=True)
         mqtt_service.start()
+        print("[lifespan] MQTT service started", flush=True)
     yield
     if settings.mqtt_enabled:
         mqtt_service.stop()
