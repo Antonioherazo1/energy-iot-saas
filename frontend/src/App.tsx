@@ -84,6 +84,8 @@ export default function App() {
   const [dayDate, setDayDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [daySeries, setDaySeries] = useState<LatestTelemetry[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
+  const [channelHourFrom, setChannelHourFrom] = useState(0);
+  const [channelHourTo, setChannelHourTo] = useState(24);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [rangeData, setRangeData] = useState<LatestTelemetry[]>([]);
@@ -329,69 +331,39 @@ export default function App() {
     };
   }, [token, user, onboardingStep]);
 
-  const powerChartOption = useMemo<EChartsOption>(() => {
-    return {
-      grid: { left: 42, right: 16, top: 28, bottom: 34 },
-      tooltip: { trigger: "axis" },
-      xAxis: {
-        type: "category",
-        data: latest.map((item) => item.device_name),
-        axisLabel: { color: "#526071" }
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { color: "#526071" },
-        splitLine: { lineStyle: { color: "#e4e8ef" } }
-      },
-      series: [
-        {
-          type: "bar",
-          data: latest.map((item) => numeric(item.power)),
-          itemStyle: { color: "#0f766e", borderRadius: [4, 4, 0, 0] },
-          name: "Potencia W"
-        }
-      ]
-    };
-  }, [latest]);
-
-  const dailyEnergyOption = useMemo<EChartsOption>(() => {
-    return {
-      grid: { left: 42, right: 16, top: 28, bottom: 34 },
-      tooltip: { trigger: "axis" },
-      xAxis: {
-        type: "category",
-        data: daily.map((item) => item.period),
-        axisLabel: { color: "#526071" }
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { color: "#526071" },
-        splitLine: { lineStyle: { color: "#e4e8ef" } }
-      },
-      series: [
-        {
-          type: "line",
-          smooth: true,
-          areaStyle: { color: "rgba(37, 99, 235, 0.12)" },
-          lineStyle: { color: "#2563eb", width: 3 },
-          symbolSize: 7,
-          data: daily.map((item) => numeric(item.energy_kwh)),
-          name: "kWh diario"
-        }
-      ]
-    };
-  }, [daily]);
-
   const channelsOption = useMemo<EChartsOption>(() => {
-    const labels = channelData.map((_, i) => `#${i + 1}`);
+    const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
+
+    const filtered = channelData.filter((d) => {
+      if (!d.recorded_at) return true;
+      const h = new Date(d.recorded_at).getHours();
+      return h >= channelHourFrom && h < channelHourTo;
+    });
+
+    const times = filtered.map((d) => {
+      const t = new Date(d.recorded_at ?? "");
+      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+    });
+
+    const series = deviceChannels
+      .filter((ch) => ch.is_active)
+      .map((ch, idx) => ({
+        type: "line" as const,
+        smooth: true,
+        symbol: "none",
+        name: ch.name,
+        data: filtered.map((d) => numeric(d[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null)),
+        lineStyle: { color: colors[idx % colors.length], width: 2 },
+      }));
+
     return {
       grid: { left: 42, right: 16, top: 36, bottom: 34 },
       tooltip: { trigger: "axis" },
       legend: { bottom: 0, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
       xAxis: {
         type: "category",
-        data: labels,
-        axisLabel: { color: "#526071", fontSize: 10, show: false },
+        data: times,
+        axisLabel: { color: "#526071", fontSize: 10, show: true },
       },
       yAxis: {
         type: "value",
@@ -399,30 +371,9 @@ export default function App() {
         axisLabel: { color: "#526071" },
         splitLine: { lineStyle: { color: "#e4e8ef" } },
       },
-      series: [
-        {
-          type: "line", smooth: true, symbol: "none", name: "CH1",
-          data: channelData.map((d) => numeric(d.ch1)),
-          lineStyle: { color: "#0f766e", width: 2 },
-        },
-        {
-          type: "line", smooth: true, symbol: "none", name: "CH2",
-          data: channelData.map((d) => numeric(d.ch2)),
-          lineStyle: { color: "#2563eb", width: 2 },
-        },
-        {
-          type: "line", smooth: true, symbol: "none", name: "CH3",
-          data: channelData.map((d) => numeric(d.ch3)),
-          lineStyle: { color: "#d97706", width: 2 },
-        },
-        {
-          type: "line", smooth: true, symbol: "none", name: "CH4",
-          data: channelData.map((d) => numeric(d.ch4)),
-          lineStyle: { color: "#dc2626", width: 2 },
-        },
-      ],
+      series,
     };
-  }, [channelData]);
+  }, [channelData, deviceChannels, channelHourFrom, channelHourTo]);
 
   const monthlyEnergyOption = useMemo<EChartsOption>(() => {
     return {
@@ -850,18 +801,73 @@ export default function App() {
         ) : null}
 
         <div className="mt-6 grid gap-4 xl:grid-cols-3">
-          <Panel title="Potencia por dispositivo">
-            <Chart option={powerChartOption} />
+          <Panel title="Energia por canal (kWh)">
+            <div className="space-y-2 text-sm">
+              {selectedDeviceId && deviceChannels.length > 0 ? (
+                deviceChannels.filter((ch) => ch.is_active).map((ch) => {
+                  const lt = latest.find((l) => l.device_id === selectedDeviceId);
+                  const chEnergy = lt ? numeric(lt[`ch${ch.channel_number}_energy_kwh` as keyof LatestTelemetry] as string | null) : 0;
+                  return (
+                    <div className="flex justify-between border-b border-slate-100 py-1" key={ch.id}>
+                      <span className="text-slate-600">{ch.name}</span>
+                      <span className="font-semibold">{chEnergy.toFixed(3)} kWh</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-slate-400">Selecciona un dispositivo con canales configurados</p>
+              )}
+            </div>
           </Panel>
           <Panel title="Consumo diario">
-            <Chart option={dailyEnergyOption} />
+            {(() => {
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const todayBucket = daily.find((d) => d.period.startsWith(todayStr));
+              const dailyTotal = todayBucket ? numeric(todayBucket.energy_kwh) : 0;
+              return (
+                <div className="space-y-1 text-sm">
+                  <p className="text-3xl font-semibold text-brand">{dailyTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                  <p className="text-xs text-slate-400">{todayStr}</p>
+                </div>
+              );
+            })()}
           </Panel>
           <Panel title="Consumo mensual">
-            <Chart option={monthlyEnergyOption} />
+            {(() => {
+              const thisMonth = new Date().toISOString().slice(0, 7);
+              const monthBucket = monthly.find((m) => m.period.startsWith(thisMonth));
+              const monthTotal = monthBucket ? numeric(monthBucket.energy_kwh) : 0;
+              return (
+                <div className="space-y-1 text-sm">
+                  <p className="text-3xl font-semibold text-accent">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                  <p className="text-xs text-slate-400">{thisMonth}</p>
+                </div>
+              );
+            })()}
           </Panel>
         </div>
 
         <div className="mt-6">
+          <div className="flex flex-wrap items-end gap-4 mb-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Hora desde</label>
+              <input
+                className="h-10 w-24 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                type="number" min={0} max={23}
+                value={channelHourFrom}
+                onChange={(e) => setChannelHourFrom(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Hora hasta</label>
+              <input
+                className="h-10 w-24 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                type="number" min={1} max={24}
+                value={channelHourTo}
+                onChange={(e) => setChannelHourTo(Number(e.target.value))}
+              />
+            </div>
+          </div>
           <Panel title="Corriente por canal (A)">
             <Chart option={channelsOption} />
           </Panel>
