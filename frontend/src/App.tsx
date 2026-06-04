@@ -321,6 +321,9 @@ export default function App() {
       }
       realtimeReloadRef.current = window.setTimeout(() => {
         void loadDashboard(token);
+        if (selectedDeviceId) {
+          void loadDaySeries();
+        }
       }, 250);
     };
     socket.onerror = () => {
@@ -337,8 +340,9 @@ export default function App() {
 
   const channelsOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
+    const sourceData = daySeries.length > 0 ? daySeries : channelData;
 
-    const filtered = channelData.filter((d) => {
+    const filtered = sourceData.filter((d) => {
       if (!d.recorded_at) return true;
       const h = new Date(d.recorded_at).getHours();
       return h >= channelHourFrom && h < channelHourTo;
@@ -386,7 +390,7 @@ export default function App() {
       },
       series,
     };
-  }, [channelData, deviceChannels, channelHourFrom, channelHourTo]);
+  }, [channelData, daySeries, deviceChannels, channelHourFrom, channelHourTo]);
 
   const channelDayChartOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
