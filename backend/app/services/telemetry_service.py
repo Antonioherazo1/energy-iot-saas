@@ -70,6 +70,7 @@ def create_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> Tel
     recorded_at = payload.recorded_at or now
     device.last_seen_at = now
     energy_kwh = payload.energy_kwh or calculate_energy_kwh(db, device.id, recorded_at, payload.power)
+    print(f"[TELEMETRY] ch1={payload.ch1} ch2={payload.ch2} ch3={payload.ch3} ch4={payload.ch4} power={payload.power}", flush=True)
     telemetry = Telemetry(
         device_id=device.id,
         recorded_at=recorded_at,
