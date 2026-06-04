@@ -10,11 +10,15 @@ import type {
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+const ACCESS_KEY = "energy_iot_access_token";
+const REFRESH_KEY = "energy_iot_refresh_token";
 
 type RequestOptions = {
   token?: string;
   body?: unknown;
 };
+
+let refreshPromise: Promise<string | null> | null = null;
 
 export function getDashboardWebSocketUrl(): string {
   const apiUrl = new URL(API_BASE_URL, window.location.origin);
@@ -22,6 +26,34 @@ export function getDashboardWebSocketUrl(): string {
   apiUrl.pathname = `${apiUrl.pathname.replace(/\/$/, "")}/ws/dashboard`;
   apiUrl.search = "";
   return apiUrl.toString();
+}
+
+async function attemptRefresh(): Promise<string | null> {
+  const refreshToken = localStorage.getItem(REFRESH_KEY);
+  if (!refreshToken) return null;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) {
+      localStorage.removeItem(ACCESS_KEY);
+      localStorage.removeItem(REFRESH_KEY);
+      return null;
+    }
+    const data: TokenResponse & { refresh_token?: string } = await res.json();
+    localStorage.setItem(ACCESS_KEY, data.access_token);
+    if (data.refresh_token) {
+      localStorage.setItem(REFRESH_KEY, data.refresh_token);
+    }
+    return data.access_token;
+  } catch {
+    localStorage.removeItem(ACCESS_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+    return null;
+  }
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -37,6 +69,26 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined
   });
+
+  if (response.status === 401 && options.token) {
+    if (!refreshPromise) {
+      refreshPromise = attemptRefresh();
+    }
+    const newToken = await refreshPromise;
+    refreshPromise = null;
+
+    if (newToken) {
+      headers.Authorization = `Bearer ${newToken}`;
+      const retry = await fetch(`${API_BASE_URL}${path}`, {
+        method: options.body ? "POST" : "GET",
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      if (retry.ok) return retry.json() as Promise<T>;
+    }
+    window.location.reload();
+    throw new Error("Session expired");
+  }
 
   if (!response.ok) {
     const detail = await response.text();

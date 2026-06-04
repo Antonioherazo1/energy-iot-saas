@@ -19,6 +19,7 @@ import {
 import type { DashboardSummary, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
 const tokenKey = "energy_iot_access_token";
+const refreshKey = "energy_iot_refresh_token";
 
 function numeric(value: string | null | undefined): number {
   return Number(value ?? 0);
@@ -41,7 +42,7 @@ function formatDate(value: string | null) {
 
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? "");
-  const [email, setEmail] = useState("admin@thinc.site");
+  const [email, setEmail] = useState("admin@thinc.site.com");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -102,6 +103,7 @@ export default function App() {
     try {
       const response = await login(email, password);
       localStorage.setItem(tokenKey, response.access_token);
+      localStorage.setItem(refreshKey, response.refresh_token);
       setToken(response.access_token);
       await loadDashboard(response.access_token);
     } catch (err) {
