@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.models.channel import DeviceChannel
 from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.schemas.telemetry import TelemetryIn
@@ -36,27 +38,33 @@ def publish_telemetry_event(device: Device, telemetry: Telemetry) -> None:
         "ch2": decimal_to_string(telemetry.ch2),
         "ch3": decimal_to_string(telemetry.ch3),
         "ch4": decimal_to_string(telemetry.ch4),
+        "ch1_energy_kwh": decimal_to_string(telemetry.ch1_energy_kwh),
+        "ch2_energy_kwh": decimal_to_string(telemetry.ch2_energy_kwh),
+        "ch3_energy_kwh": decimal_to_string(telemetry.ch3_energy_kwh),
+        "ch4_energy_kwh": decimal_to_string(telemetry.ch4_energy_kwh),
     }
     websocket_manager.broadcast_threadsafe("dashboard", payload)
     websocket_manager.broadcast_threadsafe(str(device.id), payload)
 
 
-def calculate_energy_kwh(db: Session, device_id, recorded_at, power) -> Decimal | None:
-    if power is None:
-        return None
-    prev = db.scalar(
-        select(Telemetry)
-        .where(Telemetry.device_id == device_id, Telemetry.recorded_at < recorded_at)
-        .order_by(Telemetry.recorded_at.desc())
-        .limit(1)
-    )
-    if prev is None or prev.energy_kwh is None:
+def _calc_channel_energy(
+    prev: Telemetry | None,
+    ch_power: Decimal,
+    recorded_at: datetime,
+    channel_number: int,
+) -> Decimal:
+    if ch_power is None or ch_power == 0:
+        return Decimal("0")
+    if prev is None:
+        return Decimal("0")
+    prev_energy = getattr(prev, f"ch{channel_number}_energy_kwh", None)
+    if prev_energy is None:
         return Decimal("0")
     delta_hours = (recorded_at - prev.recorded_at).total_seconds() / 3600
     if delta_hours <= 0:
-        return prev.energy_kwh
-    increment = Decimal(str(power)) * Decimal(str(delta_hours)) / Decimal("1000")
-    return prev.energy_kwh + increment
+        return prev_energy
+    increment = ch_power * Decimal(str(delta_hours)) / Decimal("1000")
+    return prev_energy + increment
 
 
 def create_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> Telemetry | None:
@@ -69,20 +77,61 @@ def create_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> Tel
     now = datetime.now(timezone.utc)
     recorded_at = payload.recorded_at or now
     device.last_seen_at = now
-    energy_kwh = payload.energy_kwh or calculate_energy_kwh(db, device.id, recorded_at, payload.power)
+
+    channels = list(db.scalars(
+        select(DeviceChannel).where(
+            DeviceChannel.device_id == device.id,
+            DeviceChannel.is_active.is_(True),
+        ).order_by(DeviceChannel.channel_number)
+    ))
+
+    prev = db.scalar(
+        select(Telemetry)
+        .where(Telemetry.device_id == device.id, Telemetry.recorded_at < recorded_at)
+        .order_by(Telemetry.recorded_at.desc())
+        .limit(1)
+    )
+
+    ch_currents = [payload.ch1, payload.ch2, payload.ch3, payload.ch4]
+    ch_powers: list[Decimal | None] = [None, None, None, None]
+    ch_energies: list[Decimal | None] = [None, None, None, None]
+    total_power = Decimal("0")
+    global_voltage = Decimal(str(settings.assumed_voltage))
+
+    for idx in range(4):
+        ch_current = ch_currents[idx]
+        if ch_current is None:
+            continue
+        ch_config = next((c for c in channels if c.channel_number == idx + 1), None)
+        ch_voltage = global_voltage if ch_config is None else ch_config.voltage
+        ch_power_val = ch_current * ch_voltage
+        ch_powers[idx] = ch_power_val
+        total_power += ch_power_val
+        ch_energies[idx] = _calc_channel_energy(prev, ch_power_val, recorded_at, idx + 1)
+
+    total_current = sum(c for c in ch_currents if c is not None) or payload.current
+    if total_current is None:
+        total_current = Decimal("0")
+
+    total_energy = sum(e for e in ch_energies if e is not None) or payload.energy_kwh
+
     telemetry = Telemetry(
         device_id=device.id,
         recorded_at=recorded_at,
-        voltage=payload.voltage,
-        current=payload.current,
-        power=payload.power,
-        energy_kwh=energy_kwh,
+        voltage=payload.voltage or global_voltage,
+        current=total_current,
+        power=total_power,
+        energy_kwh=total_energy,
         frequency=payload.frequency,
         power_factor=payload.power_factor,
         ch1=payload.ch1,
         ch2=payload.ch2,
         ch3=payload.ch3,
         ch4=payload.ch4,
+        ch1_energy_kwh=ch_energies[0],
+        ch2_energy_kwh=ch_energies[1],
+        ch3_energy_kwh=ch_energies[2],
+        ch4_energy_kwh=ch_energies[3],
     )
     db.add(telemetry)
     db.commit()

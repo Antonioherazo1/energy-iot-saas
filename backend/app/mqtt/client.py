@@ -71,15 +71,8 @@ class MQTTService:
         else:
             recorded_at = datetime.now(timezone.utc)
 
-        voltage = settings.assumed_voltage
-
         telemetry = TelemetryIn(
-            voltage=voltage,
             current=total_current,
-            power=total_current * voltage,
-            energy_kwh=None,
-            frequency=None,
-            power_factor=None,
             ch1=ch1,
             ch2=ch2,
             ch3=ch3,
