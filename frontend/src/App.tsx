@@ -17,6 +17,7 @@ import {
   getSummary,
   login,
   downloadTelemetryCsv,
+  getTelemetryByRange,
 } from "./lib/api";
 import type { DashboardSummary, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
@@ -62,6 +63,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [creatingDevice, setCreatingDevice] = useState(false);
   const [error, setError] = useState("");
+  const [rangeStart, setRangeStart] = useState("2026-06-03T22:00");
+  const [rangeEnd, setRangeEnd] = useState("");
+  const [rangeData, setRangeData] = useState<LatestTelemetry[]>([]);
+  const [rangeLoading, setRangeLoading] = useState(false);
   const realtimeReloadRef = useRef<number | null>(null);
 
   async function loadDashboard(activeToken = token) {
@@ -123,6 +128,33 @@ export default function App() {
     setToken("");
     setUser(null);
     setPassword("");
+  }
+
+  function toLocalIso(date: Date): string {
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  useEffect(() => {
+    if (!rangeEnd && token) {
+      setRangeEnd(toLocalIso(new Date()));
+    }
+  }, [token]);
+
+  async function loadRange() {
+    if (!rangeStart || !rangeEnd || !token) return;
+    setRangeLoading(true);
+    setError("");
+    try {
+      const startUtc = new Date(rangeStart).toISOString();
+      const endUtc = new Date(rangeEnd).toISOString();
+      const data = await getTelemetryByRange(token, startUtc, endUtc);
+      setRangeData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar rango");
+    } finally {
+      setRangeLoading(false);
+    }
   }
 
   async function handleCreateDevice(event: FormEvent<HTMLFormElement>) {
@@ -388,7 +420,11 @@ export default function App() {
             </button>
             <button
               className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium"
-              onClick={() => downloadTelemetryCsv(token)}
+              onClick={() => {
+                const startUtc = rangeStart ? new Date(rangeStart).toISOString() : undefined;
+                const endUtc = rangeEnd ? new Date(rangeEnd).toISOString() : undefined;
+                downloadTelemetryCsv(token, startUtc, endUtc);
+              }}
               type="button"
             >
               <Download size={16} />
@@ -496,7 +532,48 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel title="Ultima telemetria">
+          <Panel title="Telemetria por rango">
+            <div className="mb-4 flex flex-wrap items-end gap-2 rounded-md border border-line bg-slate-50 p-3">
+              <label className="flex-1 min-w-[180px]">
+                <span className="mb-1 block text-xs font-medium text-slate-600">Desde</span>
+                <input
+                  className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                  type="datetime-local"
+                  value={rangeStart}
+                  onChange={(e) => setRangeStart(e.target.value)}
+                />
+              </label>
+              <label className="flex-1 min-w-[180px]">
+                <span className="mb-1 block text-xs font-medium text-slate-600">Hasta</span>
+                <input
+                  className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                  type="datetime-local"
+                  value={rangeEnd}
+                  onChange={(e) => setRangeEnd(e.target.value)}
+                />
+              </label>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-white disabled:opacity-60"
+                disabled={rangeLoading}
+                onClick={loadRange}
+                type="button"
+              >
+                <RefreshCw size={16} />
+                Consultar
+              </button>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium"
+                onClick={() => {
+                  const startUtc = rangeStart ? new Date(rangeStart).toISOString() : undefined;
+                  const endUtc = rangeEnd ? new Date(rangeEnd).toISOString() : undefined;
+                  downloadTelemetryCsv(token, startUtc, endUtc);
+                }}
+                type="button"
+              >
+                <Download size={16} />
+                CSV
+              </button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[920px] text-left text-sm">
                 <thead className="border-b border-line text-slate-500">
@@ -512,8 +589,10 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {latest.map((item) => (
-                    <tr className="border-b border-slate-100" key={item.device_id}>
+                  {rangeData.length === 0 ? (
+                    <tr><td className="py-6 text-center text-slate-400" colSpan={8}>Selecciona un rango y presiona Consultar</td></tr>
+                  ) : rangeData.map((item, i) => (
+                    <tr className="border-b border-slate-100" key={`${item.device_id}-${i}`}>
                       <td className="py-3 font-medium">{item.device_name}</td>
                       <td className="py-3">{formatNumber(item.ch1, " A")}</td>
                       <td className="py-3">{formatNumber(item.ch2, " A")}</td>

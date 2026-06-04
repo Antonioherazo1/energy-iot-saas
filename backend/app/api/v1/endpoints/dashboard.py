@@ -1,10 +1,11 @@
 import csv
 import io
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -85,31 +86,26 @@ def energy_monthly(
 @router.get("/telemetry/csv")
 def telemetry_csv(
     organization_id: uuid.UUID | None = None,
+    start: str | None = Query(default=None, description="ISO datetime (inicio)"),
+    end: str | None = Query(default=None, description="ISO datetime (fin)"),
     limit: int = Query(default=500, ge=1, le=10000),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     organization_ids = get_accessible_organization_ids(db, current_user, organization_id)
     if not organization_ids:
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow([
-            "device_id", "device_name", "device_code",
-            "recorded_at", "voltage", "current", "power", "energy_kwh",
-            "frequency", "power_factor",
-            "ch1_a", "ch2_a", "ch3_a", "ch4_a",
-        ])
-        output.seek(0)
-        return StreamingResponse(
-            iter([output.getvalue()]),
-            media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=telemetria.csv"},
-        )
+        return _empty_csv()
+
+    filters = [Device.organization_id.in_(organization_ids)]
+    if start:
+        filters.append(Telemetry.recorded_at >= datetime.fromisoformat(start))
+    if end:
+        filters.append(Telemetry.recorded_at <= datetime.fromisoformat(end))
 
     query = (
         select(Telemetry, Device)
         .join(Device, Telemetry.device_id == Device.id)
-        .where(Device.organization_id.in_(organization_ids))
+        .where(and_(*filters))
         .order_by(Telemetry.recorded_at.desc())
         .limit(limit)
     )
@@ -117,12 +113,7 @@ def telemetry_csv(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "device_id", "device_name", "device_code",
-        "recorded_at", "voltage", "current", "power", "energy_kwh",
-        "frequency", "power_factor",
-        "ch1_a", "ch2_a", "ch3_a", "ch4_a",
-    ])
+    writer.writerow(CSV_HEADERS)
     for telemetry, device in rows:
         writer.writerow([
             telemetry.device_id,
@@ -147,4 +138,67 @@ def telemetry_csv(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=telemetria.csv"},
     )
+
+
+CSV_HEADERS = [
+    "device_id", "device_name", "device_code",
+    "recorded_at", "voltage", "current", "power", "energy_kwh",
+    "frequency", "power_factor",
+    "ch1_a", "ch2_a", "ch3_a", "ch4_a",
+]
+
+
+def _empty_csv() -> StreamingResponse:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(CSV_HEADERS)
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=telemetria.csv"},
+    )
+
+
+@router.get("/telemetry/range", response_model=list[LatestTelemetryRead])
+def telemetry_range(
+    organization_id: uuid.UUID | None = None,
+    start: str = Query(description="ISO datetime (inicio)"),
+    end: str = Query(description="ISO datetime (fin)"),
+    limit: int = Query(default=200, ge=1, le=5000),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    organization_ids = get_accessible_organization_ids(db, current_user, organization_id)
+    if not organization_ids:
+        return []
+
+    filters = [
+        Device.organization_id.in_(organization_ids),
+        Telemetry.recorded_at >= datetime.fromisoformat(start),
+        Telemetry.recorded_at <= datetime.fromisoformat(end),
+    ]
+    rows = db.execute(
+        select(
+            Telemetry.device_id,
+            Telemetry.recorded_at,
+            Telemetry.voltage,
+            Telemetry.current,
+            Telemetry.power,
+            Telemetry.energy_kwh,
+            Telemetry.frequency,
+            Telemetry.power_factor,
+            Telemetry.ch1,
+            Telemetry.ch2,
+            Telemetry.ch3,
+            Telemetry.ch4,
+            Device.name.label("device_name"),
+            Device.code.label("device_code"),
+        )
+        .join(Device, Telemetry.device_id == Device.id)
+        .where(and_(*filters))
+        .order_by(Telemetry.recorded_at.desc())
+        .limit(limit)
+    )
+    return [dict(row._mapping) for row in rows]
 
