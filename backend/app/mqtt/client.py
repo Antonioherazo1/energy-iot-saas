@@ -52,20 +52,13 @@ class MQTTService:
 
         timestamp_str = payload_dict.get("timestamp", "")
         if timestamp_str and ":" in timestamp_str and len(timestamp_str) <= 8:
-            parts = timestamp_str.split(":")
             now = datetime.now(timezone.utc)
-            try:
-                recorded_at = now.replace(
-                    hour=int(parts[0]),
-                    minute=int(parts[1]),
-                    second=int(parts[2]) if len(parts) > 2 else 0,
-                    microsecond=0,
-                )
-            except (ValueError, IndexError):
-                recorded_at = now
+            recorded_at = now
         elif timestamp_str:
             try:
                 recorded_at = datetime.fromisoformat(timestamp_str)
+                if recorded_at.tzinfo is None:
+                    recorded_at = recorded_at.replace(tzinfo=timezone.utc)
             except (ValueError, TypeError):
                 recorded_at = datetime.now(timezone.utc)
         else:

@@ -201,7 +201,7 @@ def get_channel_day_series(
     if device is None or device.organization_id not in org_ids:
         return []
 
-    day_start = datetime.fromisoformat(date).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+    day_start = datetime.fromisoformat(date).replace(hour=0, minute=0, second=0, microsecond=0)
     day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
 
     channels_map = {
