@@ -342,7 +342,10 @@ export default function App() {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
     const sourceData = daySeries.length > 0 ? daySeries : channelData;
 
-    const filtered = sourceData.filter((d) => {
+    const step = Math.max(1, Math.floor(sourceData.length / 200));
+    const sampled = sourceData.filter((_, i) => i % step === 0 || i === sourceData.length - 1);
+
+    const filtered = sampled.filter((d) => {
       if (!d.recorded_at) return true;
       const h = new Date(d.recorded_at).getHours();
       return h >= channelHourFrom && h < channelHourTo;
@@ -380,7 +383,12 @@ export default function App() {
       xAxis: {
         type: "category",
         data: times,
-        axisLabel: { color: "#526071", fontSize: 10, show: true },
+        axisLabel: {
+          color: "#526071",
+          fontSize: 10,
+          showMaxLabel: true,
+          interval: Math.max(1, Math.floor(times.length / 24)),
+        },
       },
       yAxis: {
         type: "value",
@@ -394,7 +402,9 @@ export default function App() {
 
   const channelDayChartOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
-    const times = daySeries.map((d) => {
+    const step = Math.max(1, Math.floor(daySeries.length / 200));
+    const sampled = daySeries.filter((_, i) => i % step === 0 || i === daySeries.length - 1);
+    const times = sampled.map((d) => {
       const t = new Date(d.recorded_at ?? "");
       return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
     });
@@ -407,7 +417,7 @@ export default function App() {
           smooth: true,
           symbol: "none",
           name: ch.name,
-          data: daySeries.map((d) => numeric(d[key] as string | null)),
+          data: sampled.map((d) => numeric(d[key] as string | null)),
           lineStyle: { color: colors[(ch.channel_number - 1) % colors.length], width: 2 },
         };
       });
@@ -418,7 +428,12 @@ export default function App() {
       xAxis: {
         type: "category",
         data: times,
-        axisLabel: { color: "#526071", fontSize: 10 },
+        axisLabel: {
+          color: "#526071",
+          fontSize: 10,
+          showMaxLabel: true,
+          interval: Math.max(1, Math.floor(times.length / 24)),
+        },
       },
       yAxis: {
         type: "value",
