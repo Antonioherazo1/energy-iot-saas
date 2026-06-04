@@ -144,3 +144,22 @@ export function getMonthlyEnergy(token: string): Promise<EnergyBucket[]> {
 export function getChannelTimeSeries(token: string): Promise<LatestTelemetry[]> {
   return request<LatestTelemetry[]>("/dashboard/channels/latest?limit=60", { token });
 }
+
+export function downloadTelemetryCsv(token: string, limit = 500): void {
+  const url = `${API_BASE_URL}/dashboard/telemetry/csv?limit=${limit}`;
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then((res) => {
+      if (!res.ok) throw new Error("Error al descargar");
+      return res.blob();
+    })
+    .then((blob) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "telemetria.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    })
+    .catch((err) => console.error("CSV download failed:", err));
+}

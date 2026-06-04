@@ -1,4 +1,4 @@
-import { Activity, Gauge, LogOut, Plus, PlugZap, RefreshCw, Zap } from "lucide-react";
+import { Activity, Download, Gauge, LogOut, Plus, PlugZap, RefreshCw, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
@@ -8,14 +8,15 @@ import {
   createDevice,
   getChannelTimeSeries,
   getCurrentUser,
-  getDailyEnergy,
   getDashboardWebSocketUrl,
+  getDailyEnergy,
   getDeviceStatus,
   getLatestTelemetry,
   getMonthlyEnergy,
   getOrganizations,
   getSummary,
-  login
+  login,
+  downloadTelemetryCsv,
 } from "./lib/api";
 import type { DashboardSummary, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
@@ -384,6 +385,14 @@ export default function App() {
             >
               <RefreshCw size={16} />
               Actualizar
+            </button>
+            <button
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium"
+              onClick={() => downloadTelemetryCsv(token)}
+              type="button"
+            >
+              <Download size={16} />
+              CSV
             </button>
             <button
               className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium"
