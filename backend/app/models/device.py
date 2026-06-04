@@ -27,3 +27,4 @@ class Device(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     telemetry: Mapped[list["Telemetry"]] = relationship(back_populates="device", cascade="all, delete-orphan")
+    channels: Mapped[list["DeviceChannel"]] = relationship(back_populates="device", cascade="all, delete-orphan")

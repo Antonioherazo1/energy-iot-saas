@@ -28,5 +28,9 @@ class Telemetry(Base):
     ch2: Mapped[Decimal | None] = mapped_column(Numeric(10, 3), nullable=True)
     ch3: Mapped[Decimal | None] = mapped_column(Numeric(10, 3), nullable=True)
     ch4: Mapped[Decimal | None] = mapped_column(Numeric(10, 3), nullable=True)
+    ch1_energy_kwh: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    ch2_energy_kwh: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    ch3_energy_kwh: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    ch4_energy_kwh: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
 
     device: Mapped["Device"] = relationship(back_populates="telemetry")
