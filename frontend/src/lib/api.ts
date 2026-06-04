@@ -18,6 +18,7 @@ const REFRESH_KEY = "energy_iot_refresh_token";
 type RequestOptions = {
   token?: string;
   body?: unknown;
+  method?: string;
 };
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -66,8 +67,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers.Authorization = `Bearer ${options.token}`;
   }
 
+  const method = options.method ?? (options.body ? "POST" : "GET");
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.body ? "POST" : "GET",
+    method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined
   });
@@ -205,4 +207,12 @@ export function getChannelDaySeries(token: string, deviceId: string, date: strin
     `/dashboard/channels/day?device_id=${deviceId}&date=${date}`,
     { token }
   );
+}
+
+export function updateChannel(token: string, deviceId: string, channelNumber: number, data: { name?: string; voltage?: number; is_active?: boolean }): Promise<DeviceChannel> {
+  return request<DeviceChannel>(`/devices/${deviceId}/channels/${channelNumber}`, {
+    method: "PUT",
+    token,
+    body: data,
+  });
 }

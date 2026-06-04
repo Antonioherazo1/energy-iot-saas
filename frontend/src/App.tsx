@@ -23,6 +23,7 @@ import {
   getChannelDaySeries,
   linkDevice,
   setupChannels,
+  updateChannel,
 } from "./lib/api";
 import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
@@ -86,6 +87,9 @@ export default function App() {
   const [dayLoading, setDayLoading] = useState(false);
   const [channelHourFrom, setChannelHourFrom] = useState(0);
   const [channelHourTo, setChannelHourTo] = useState(24);
+  const [showChannelConfig, setShowChannelConfig] = useState(false);
+  const [configChannels, setConfigChannels] = useState<DeviceChannel[]>([]);
+  const [savingChannels, setSavingChannels] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [rangeData, setRangeData] = useState<LatestTelemetry[]>([]);
@@ -345,8 +349,17 @@ export default function App() {
       return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
     });
 
-    const series = deviceChannels
-      .filter((ch) => ch.is_active)
+    const activeChannels = deviceChannels.length > 0
+      ? deviceChannels.filter((ch) => ch.is_active)
+      : [1, 2, 3, 4].map((n) => ({
+          id: `ch${n}`,
+          channel_number: n,
+          name: `Canal ${n}`,
+          voltage: 110,
+          is_active: true,
+        })) as DeviceChannel[];
+
+    const series = activeChannels
       .map((ch, idx) => ({
         type: "line" as const,
         smooth: true,
@@ -374,31 +387,6 @@ export default function App() {
       series,
     };
   }, [channelData, deviceChannels, channelHourFrom, channelHourTo]);
-
-  const monthlyEnergyOption = useMemo<EChartsOption>(() => {
-    return {
-      grid: { left: 42, right: 16, top: 28, bottom: 34 },
-      tooltip: { trigger: "axis" },
-      xAxis: {
-        type: "category",
-        data: monthly.map((item) => item.period.slice(0, 7)),
-        axisLabel: { color: "#526071" }
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { color: "#526071" },
-        splitLine: { lineStyle: { color: "#e4e8ef" } }
-      },
-      series: [
-        {
-          type: "bar",
-          data: monthly.map((item) => numeric(item.energy_kwh)),
-          itemStyle: { color: "#334155", borderRadius: [4, 4, 0, 0] },
-          name: "kWh mensual"
-        }
-      ]
-    };
-  }, [monthly]);
 
   const channelDayChartOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
@@ -749,6 +737,18 @@ export default function App() {
                 {lt.device_name}
               </button>
             ))}
+            {selectedDeviceId && (
+              <button
+                className="rounded-md px-4 py-2 text-sm font-medium border border-line bg-white text-ink hover:bg-slate-50"
+                onClick={() => {
+                  setConfigChannels(deviceChannels.length > 0 ? [...deviceChannels] : [1,2,3,4].map(n => ({ id: `new-${n}`, device_id: selectedDeviceId, channel_number: n, name: `Canal ${n}`, voltage: 110, is_active: true } as DeviceChannel)));
+                  setShowChannelConfig(true);
+                }}
+                type="button"
+              >
+                Configurar canales
+              </button>
+            )}
           </div>
         </div>
 
@@ -1011,6 +1011,91 @@ export default function App() {
           </Panel>
         </div>
       </section>
+
+      {showChannelConfig ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowChannelConfig(false)}>
+          <section className="mx-4 w-full max-w-lg rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Configurar canales</h2>
+            <div className="space-y-3">
+              {configChannels.map((ch, i) => (
+                <div className="flex items-center gap-3" key={ch.channel_number}>
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 accent-brand"
+                    checked={ch.is_active}
+                    onChange={() => {
+                      const next = [...configChannels];
+                      next[i] = { ...next[i], is_active: !next[i].is_active };
+                      setConfigChannels(next);
+                    }}
+                  />
+                  <span className="w-20 text-sm text-slate-500">Canal {ch.channel_number}</span>
+                  <input
+                    className="flex-1 h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                    value={ch.name}
+                    onChange={(e) => {
+                      const next = [...configChannels];
+                      next[i] = { ...next[i], name: e.target.value };
+                      setConfigChannels(next);
+                    }}
+                  />
+                  <select
+                    className="h-10 w-24 rounded-md border border-line px-2 text-sm outline-none focus:border-brand"
+                    value={ch.voltage}
+                    onChange={(e) => {
+                      const next = [...configChannels];
+                      next[i] = { ...next[i], voltage: Number(e.target.value) };
+                      setConfigChannels(next);
+                    }}
+                  >
+                    <option value={110}>110 V</option>
+                    <option value={220}>220 V</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+            {error ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+            <div className="mt-4 flex gap-3">
+              <button
+                className="flex-1 h-11 rounded-md border border-line bg-white text-sm font-medium"
+                onClick={() => setShowChannelConfig(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="flex-1 h-11 rounded-md bg-brand text-sm font-medium text-white disabled:opacity-60"
+                disabled={savingChannels}
+                onClick={async () => {
+                  if (!token || !selectedDeviceId) return;
+                  setSavingChannels(true);
+                  setError("");
+                  try {
+                    await Promise.all(
+                      configChannels.map((ch) =>
+                        updateChannel(token, selectedDeviceId, ch.channel_number, {
+                          name: ch.name,
+                          voltage: ch.voltage,
+                          is_active: ch.is_active,
+                        })
+                      )
+                    );
+                    setShowChannelConfig(false);
+                    await loadDeviceChannels(selectedDeviceId);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Error al guardar");
+                  } finally {
+                    setSavingChannels(false);
+                  }
+                }}
+                type="button"
+              >
+                {savingChannels ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
