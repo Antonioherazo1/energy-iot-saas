@@ -80,6 +80,10 @@ class MQTTService:
             energy_kwh=None,
             frequency=None,
             power_factor=None,
+            ch1=ch1,
+            ch2=ch2,
+            ch3=ch3,
+            ch4=ch4,
             device_key=None,
             recorded_at=recorded_at,
         )

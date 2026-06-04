@@ -60,6 +60,10 @@ export type LatestTelemetry = {
   energy_kwh: string | null;
   frequency: string | null;
   power_factor: string | null;
+  ch1: string | null;
+  ch2: string | null;
+  ch3: string | null;
+  ch4: string | null;
 };
 
 export type EnergyBucket = {

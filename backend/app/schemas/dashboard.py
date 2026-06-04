@@ -25,6 +25,10 @@ class LatestTelemetryRead(BaseModel):
     energy_kwh: Decimal | None
     frequency: Decimal | None
     power_factor: Decimal | None
+    ch1: Decimal | None
+    ch2: Decimal | None
+    ch3: Decimal | None
+    ch4: Decimal | None
 
 
 class EnergyBucketRead(BaseModel):

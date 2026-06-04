@@ -140,3 +140,7 @@ export function getDailyEnergy(token: string): Promise<EnergyBucket[]> {
 export function getMonthlyEnergy(token: string): Promise<EnergyBucket[]> {
   return request<EnergyBucket[]>("/dashboard/energy/monthly?limit=12", { token });
 }
+
+export function getChannelTimeSeries(token: string): Promise<LatestTelemetry[]> {
+  return request<LatestTelemetry[]>("/dashboard/channels/latest?limit=60", { token });
+}

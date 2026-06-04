@@ -55,6 +55,17 @@ def energy_daily(
     return get_energy_by_period(db=db, user=current_user, organization_id=organization_id, period="day", limit=limit)
 
 
+@router.get("/channels/latest")
+def channels_latest(
+    organization_id: uuid.UUID | None = None,
+    limit: int = Query(default=60, ge=10, le=500),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    from app.services.dashboard_service import get_channel_time_series
+    return get_channel_time_series(db=db, user=current_user, organization_id=organization_id, limit=limit)
+
+
 @router.get("/energy/monthly", response_model=list[EnergyBucketRead])
 def energy_monthly(
     organization_id: uuid.UUID | None = None,

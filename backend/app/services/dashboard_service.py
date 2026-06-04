@@ -61,6 +61,10 @@ def latest_telemetry_query(organization_ids: list[uuid.UUID]) -> Select:
             Telemetry.energy_kwh,
             Telemetry.frequency,
             Telemetry.power_factor,
+            Telemetry.ch1,
+            Telemetry.ch2,
+            Telemetry.ch3,
+            Telemetry.ch4,
             func.row_number()
             .over(partition_by=Telemetry.device_id, order_by=Telemetry.recorded_at.desc())
             .label("row_number"),
@@ -80,6 +84,10 @@ def latest_telemetry_query(organization_ids: list[uuid.UUID]) -> Select:
             latest.c.energy_kwh,
             latest.c.frequency,
             latest.c.power_factor,
+            latest.c.ch1,
+            latest.c.ch2,
+            latest.c.ch3,
+            latest.c.ch4,
         )
         .outerjoin(latest, and_(latest.c.device_id == Device.id, latest.c.row_number == 1))
         .where(Device.organization_id.in_(organization_ids))
@@ -134,6 +142,39 @@ def get_energy_by_period(
         {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0")}
         for row in rows
     ]
+
+
+def get_channel_time_series(
+    db: Session,
+    user: User,
+    organization_id: uuid.UUID | None = None,
+    limit: int = 60,
+) -> list[dict]:
+    organization_ids = get_accessible_organization_ids(db, user, organization_id)
+    if not organization_ids:
+        return []
+
+    rows = db.execute(
+        select(
+            Telemetry.recorded_at,
+            Device.name.label("device_name"),
+            Telemetry.ch1,
+            Telemetry.ch2,
+            Telemetry.ch3,
+            Telemetry.ch4,
+            Telemetry.power,
+        )
+        .join(Device, Device.id == Telemetry.device_id)
+        .where(
+            Device.organization_id.in_(organization_ids),
+            Telemetry.ch1.is_not(None),
+        )
+        .order_by(Telemetry.recorded_at.desc())
+        .limit(max(1, min(limit, 500)))
+    )
+    result = [dict(row._mapping) for row in rows]
+    result.reverse()
+    return result
 
 
 def get_summary(

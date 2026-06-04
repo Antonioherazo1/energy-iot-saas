@@ -6,6 +6,7 @@ import type { EChartsOption } from "echarts";
 import Chart from "./components/Chart";
 import {
   createDevice,
+  getChannelTimeSeries,
   getCurrentUser,
   getDailyEnergy,
   getDashboardWebSocketUrl,
@@ -50,6 +51,7 @@ export default function App() {
   const [latest, setLatest] = useState<LatestTelemetry[]>([]);
   const [daily, setDaily] = useState<EnergyBucket[]>([]);
   const [monthly, setMonthly] = useState<EnergyBucket[]>([]);
+  const [channelData, setChannelData] = useState<LatestTelemetry[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [deviceName, setDeviceName] = useState("");
   const [deviceCode, setDeviceCode] = useState("");
@@ -69,14 +71,15 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      const [currentUser, orgData, summaryData, deviceData, latestData, dailyData, monthlyData] = await Promise.all([
+      const [currentUser, orgData, summaryData, deviceData, latestData, dailyData, monthlyData, channels] = await Promise.all([
         getCurrentUser(activeToken),
         getOrganizations(activeToken),
         getSummary(activeToken),
         getDeviceStatus(activeToken),
         getLatestTelemetry(activeToken),
         getDailyEnergy(activeToken),
-        getMonthlyEnergy(activeToken)
+        getMonthlyEnergy(activeToken),
+        getChannelTimeSeries(activeToken),
       ]);
       setUser(currentUser);
       setOrganizations(orgData);
@@ -85,6 +88,7 @@ export default function App() {
       setLatest(latestData);
       setDaily(dailyData.reverse());
       setMonthly(monthlyData.reverse());
+      setChannelData(channels);
       setLastUpdatedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar el dashboard");
@@ -239,6 +243,48 @@ export default function App() {
     };
   }, [daily]);
 
+  const channelsOption = useMemo<EChartsOption>(() => {
+    const labels = channelData.map((_, i) => `#${i + 1}`);
+    return {
+      grid: { left: 42, right: 16, top: 36, bottom: 34 },
+      tooltip: { trigger: "axis" },
+      legend: { bottom: 0, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
+      xAxis: {
+        type: "category",
+        data: labels,
+        axisLabel: { color: "#526071", fontSize: 10, show: false },
+      },
+      yAxis: {
+        type: "value",
+        name: "Amperios",
+        axisLabel: { color: "#526071" },
+        splitLine: { lineStyle: { color: "#e4e8ef" } },
+      },
+      series: [
+        {
+          type: "line", smooth: true, symbol: "none", name: "CH1",
+          data: channelData.map((d) => numeric(d.ch1)),
+          lineStyle: { color: "#0f766e", width: 2 },
+        },
+        {
+          type: "line", smooth: true, symbol: "none", name: "CH2",
+          data: channelData.map((d) => numeric(d.ch2)),
+          lineStyle: { color: "#2563eb", width: 2 },
+        },
+        {
+          type: "line", smooth: true, symbol: "none", name: "CH3",
+          data: channelData.map((d) => numeric(d.ch3)),
+          lineStyle: { color: "#d97706", width: 2 },
+        },
+        {
+          type: "line", smooth: true, symbol: "none", name: "CH4",
+          data: channelData.map((d) => numeric(d.ch4)),
+          lineStyle: { color: "#dc2626", width: 2 },
+        },
+      ],
+    };
+  }, [channelData]);
+
   const monthlyEnergyOption = useMemo<EChartsOption>(() => {
     return {
       grid: { left: 42, right: 16, top: 28, bottom: 34 },
@@ -374,6 +420,12 @@ export default function App() {
           </Panel>
         </div>
 
+        <div className="mt-6">
+          <Panel title="Corriente por canal (A)">
+            <Chart option={channelsOption} />
+          </Panel>
+        </div>
+
         <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
           <Panel title="Estado de dispositivos">
             <form className="mb-4 grid gap-3 rounded-md border border-line bg-slate-50 p-3 md:grid-cols-[1fr_1fr_auto]" onSubmit={handleCreateDevice}>
@@ -437,12 +489,14 @@ export default function App() {
 
           <Panel title="Ultima telemetria">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-[920px] text-left text-sm">
                 <thead className="border-b border-line text-slate-500">
                   <tr>
                     <th className="py-3 font-medium">Dispositivo</th>
-                    <th className="py-3 font-medium">Voltaje</th>
-                    <th className="py-3 font-medium">Corriente</th>
+                    <th className="py-3 font-medium">CH1 (A)</th>
+                    <th className="py-3 font-medium">CH2 (A)</th>
+                    <th className="py-3 font-medium">CH3 (A)</th>
+                    <th className="py-3 font-medium">CH4 (A)</th>
                     <th className="py-3 font-medium">Potencia</th>
                     <th className="py-3 font-medium">kWh</th>
                     <th className="py-3 font-medium">Fecha</th>
@@ -452,8 +506,10 @@ export default function App() {
                   {latest.map((item) => (
                     <tr className="border-b border-slate-100" key={item.device_id}>
                       <td className="py-3 font-medium">{item.device_name}</td>
-                      <td className="py-3">{formatNumber(item.voltage, " V")}</td>
-                      <td className="py-3">{formatNumber(item.current, " A")}</td>
+                      <td className="py-3">{formatNumber(item.ch1, " A")}</td>
+                      <td className="py-3">{formatNumber(item.ch2, " A")}</td>
+                      <td className="py-3">{formatNumber(item.ch3, " A")}</td>
+                      <td className="py-3">{formatNumber(item.ch4, " A")}</td>
                       <td className="py-3">{formatNumber(item.power, " W")}</td>
                       <td className="py-3">{formatNumber(item.energy_kwh, " kWh")}</td>
                       <td className="py-3 text-slate-600">{formatDate(item.recorded_at)}</td>

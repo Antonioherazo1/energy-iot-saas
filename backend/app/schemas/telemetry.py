@@ -12,6 +12,10 @@ class TelemetryBase(BaseModel):
     energy_kwh: Decimal | None = None
     frequency: Decimal | None = None
     power_factor: Decimal | None = None
+    ch1: Decimal | None = None
+    ch2: Decimal | None = None
+    ch3: Decimal | None = None
+    ch4: Decimal | None = None
     recorded_at: datetime | None = None
 
 
