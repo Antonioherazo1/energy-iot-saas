@@ -16,8 +16,11 @@ import {
   getOrganizations,
   getSummary,
   login,
+  signup,
   downloadTelemetryCsv,
   getTelemetryByRange,
+  linkDevice,
+  setupChannels,
 } from "./lib/api";
 import type { DashboardSummary, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
@@ -45,8 +48,11 @@ function formatDate(value: string | null) {
 
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? "");
-  const [email, setEmail] = useState("admin@thinc.site.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [orgName, setOrgName] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [user, setUser] = useState<User | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [devices, setDevices] = useState<DeviceStatus[]>([]);
@@ -55,15 +61,21 @@ export default function App() {
   const [monthly, setMonthly] = useState<EnergyBucket[]>([]);
   const [channelData, setChannelData] = useState<LatestTelemetry[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [deviceName, setDeviceName] = useState("");
-  const [deviceCode, setDeviceCode] = useState("");
   const [newDeviceKey, setNewDeviceKey] = useState("");
   const [newDeviceCode, setNewDeviceCode] = useState("");
+  const [createDeviceName, setCreateDeviceName] = useState("");
+  const [createDeviceCode, setCreateDeviceCode] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [creatingDevice, setCreatingDevice] = useState(false);
   const [error, setError] = useState("");
-  const [rangeStart, setRangeStart] = useState("2026-06-03T22:00");
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingChannels, setOnboardingChannels] = useState(4);
+  const [channelConfigs, setChannelConfigs] = useState<Array<{ name: string; voltage: number }>>([]);
+  const [deviceCode, setDeviceCode] = useState("");
+  const [deviceName, setDeviceName] = useState("");
+  const [linking, setLinking] = useState(false);
+  const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [rangeData, setRangeData] = useState<LatestTelemetry[]>([]);
   const [rangeLoading, setRangeLoading] = useState(false);
@@ -96,6 +108,11 @@ export default function App() {
       setMonthly(monthlyData.reverse());
       setChannelData(channels);
       setLastUpdatedAt(new Date());
+      if (orgData.length > 0 && deviceData.length === 0 && onboardingStep === 0) {
+        setOnboardingStep(0);
+      } else if (deviceData.length > 0) {
+        setOnboardingStep(4);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar el dashboard");
       setUser(null);
@@ -106,16 +123,26 @@ export default function App() {
     }
   }
 
-  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+  async function handleAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError("");
     try {
-      const response = await login(email, password);
+      const response = authMode === "login"
+        ? await login(email, password)
+        : await signup(email, password, fullName.trim(), orgName.trim());
       localStorage.setItem(tokenKey, response.access_token);
       localStorage.setItem(refreshKey, response.refresh_token);
       setToken(response.access_token);
-      await loadDashboard(response.access_token);
+      if (authMode === "signup") {
+        const currentUser = await getCurrentUser(response.access_token);
+        setUser(currentUser);
+        const orgs = await getOrganizations(response.access_token);
+        setOrganizations(orgs);
+        setOnboardingStep(0);
+      } else {
+        await loadDashboard(response.access_token);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar sesion");
     } finally {
@@ -128,6 +155,62 @@ export default function App() {
     setToken("");
     setUser(null);
     setPassword("");
+    setAuthMode("login");
+    setOnboardingStep(0);
+  }
+
+  function startOnboardingChannels(count: number) {
+    setOnboardingChannels(count);
+    setChannelConfigs(
+      Array.from({ length: count }, (_, i) => ({ name: `Canal ${i + 1}`, voltage: 110 }))
+    );
+    setOnboardingStep(1);
+  }
+
+  function handleLinkDevice() {
+    if (!organizations[0] || !deviceCode.trim() || !deviceName.trim()) return;
+    setLinking(true);
+    setError("");
+    const orgId = organizations[0].id;
+    linkDevice(token, orgId, deviceName.trim(), deviceCode.trim())
+      .then((device) => {
+        return setupChannels(token, device.id, channelConfigs.map((ch, i) => ({
+          channel_number: i + 1,
+          name: ch.name,
+          voltage: ch.voltage,
+        }))).then(() => device);
+      })
+      .then(() => {
+        setOnboardingStep(3);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Error al vincular dispositivo");
+      })
+      .finally(() => setLinking(false));
+  }
+
+  async function handleCreateDevice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const organizationId = organizations[0]?.id;
+    if (!organizationId) {
+      setError("No hay una organizacion disponible para crear dispositivos");
+      return;
+    }
+
+    setCreatingDevice(true);
+    setError("");
+    try {
+      const createdDevice = await createDevice(token, organizationId, createDeviceName.trim(), createDeviceCode.trim());
+      setCreateDeviceName("");
+      setCreateDeviceCode("");
+      setNewDeviceCode(createdDevice.code);
+      setNewDeviceKey(createdDevice.device_key);
+      await loadDashboard(token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear el dispositivo");
+    } finally {
+      setCreatingDevice(false);
+    }
   }
 
   function toLocalIso(date: Date): string {
@@ -157,48 +240,24 @@ export default function App() {
     }
   }
 
-  async function handleCreateDevice(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const organizationId = organizations[0]?.id;
-    if (!organizationId) {
-      setError("No hay una organizacion disponible para crear dispositivos");
-      return;
-    }
-
-    setCreatingDevice(true);
-    setError("");
-    try {
-      const createdDevice = await createDevice(token, organizationId, deviceName.trim(), deviceCode.trim());
-      setDeviceName("");
-      setDeviceCode("");
-      setNewDeviceCode(createdDevice.code);
-      setNewDeviceKey(createdDevice.device_key);
-      await loadDashboard(token);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear el dispositivo");
-    } finally {
-      setCreatingDevice(false);
-    }
-  }
-
   useEffect(() => {
-    if (token) {
+    if (token && onboardingStep === 0 && user === null) {
       void loadDashboard(token);
     }
   }, []);
 
   useEffect(() => {
-    if (!token || !user) {
+    if (!token || !user || onboardingStep > 0) {
       return;
     }
     const interval = window.setInterval(() => {
       void loadDashboard(token);
     }, 10000);
     return () => window.clearInterval(interval);
-  }, [token, user]);
+  }, [token, user, onboardingStep]);
 
   useEffect(() => {
-    if (!token || !user) {
+    if (!token || !user || onboardingStep > 0) {
       return;
     }
 
@@ -221,7 +280,7 @@ export default function App() {
       }
       socket.close();
     };
-  }, [token, user]);
+  }, [token, user, onboardingStep]);
 
   const powerChartOption = useMemo<EChartsOption>(() => {
     return {
@@ -343,7 +402,8 @@ export default function App() {
     };
   }, [monthly]);
 
-  if (!token || !user) {
+  if (!token || !user || (onboardingStep === 0 && user === null)) {
+    const signingUp = authMode === "signup";
     return (
       <main className="grid min-h-screen place-items-center bg-panel px-4 py-8 text-ink">
         <section className="w-full max-w-md rounded-lg border border-line bg-white p-6 shadow-sm">
@@ -353,18 +413,55 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-xl font-semibold">Energy IoT</h1>
-              <p className="text-sm text-slate-500">Panel industrial de monitoreo</p>
+              <p className="text-sm text-slate-500">Monitoreo industrial</p>
             </div>
           </div>
 
-          <form className="space-y-4" onSubmit={handleLogin}>
+          <div className="mb-4 flex rounded-md border border-line overflow-hidden">
+            <button
+              className={`flex-1 py-2 text-sm font-medium ${!signingUp ? "bg-brand text-white" : "bg-white text-ink"}`}
+              onClick={() => { setAuthMode("login"); setError(""); }}
+              type="button"
+            >Iniciar sesion</button>
+            <button
+              className={`flex-1 py-2 text-sm font-medium ${signingUp ? "bg-brand text-white" : "bg-white text-ink"}`}
+              onClick={() => { setAuthMode("signup"); setError(""); }}
+              type="button"
+            >Crear cuenta</button>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleAuth}>
+            {signingUp ? (
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Nombre completo</span>
+                <input
+                  className="h-11 w-full rounded-md border border-line px-3 outline-none focus:border-brand"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+            {signingUp ? (
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Nombre de la empresa</span>
+                <input
+                  className="h-11 w-full rounded-md border border-line px-3 outline-none focus:border-brand"
+                  type="text"
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Email</span>
               <input
                 className="h-11 w-full rounded-md border border-line px-3 outline-none focus:border-brand"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </label>
@@ -374,8 +471,9 @@ export default function App() {
                 className="h-11 w-full rounded-md border border-line px-3 outline-none focus:border-brand"
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={8}
               />
             </label>
             {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
@@ -385,9 +483,155 @@ export default function App() {
               type="submit"
             >
               <PlugZap size={18} />
-              Entrar
+              {signingUp ? "Crear cuenta" : "Entrar"}
             </button>
           </form>
+        </section>
+      </main>
+    );
+  }
+
+  if (onboardingStep <= 2) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-panel px-4 py-8 text-ink">
+        <section className="w-full max-w-xl rounded-lg border border-line bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-md bg-brand text-white">
+              <Zap size={21} />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold">Configuracion inicial</h1>
+              <p className="text-sm text-slate-500">Paso {onboardingStep + 1} de 3</p>
+            </div>
+          </div>
+
+          {/* Step 0: elegir 1 o 4 canales */}
+          {onboardingStep === 0 ? (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">Cuantos canales mide tu dispositivo?</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  className="rounded-lg border-2 border-line p-6 text-center hover:border-brand hover:bg-brand/5"
+                  onClick={() => startOnboardingChannels(1)}
+                  type="button"
+                >
+                  <span className="text-2xl font-bold">1</span>
+                  <p className="mt-1 text-sm text-slate-500">Canal</p>
+                </button>
+                <button
+                  className="rounded-lg border-2 border-line p-6 text-center hover:border-brand hover:bg-brand/5"
+                  onClick={() => startOnboardingChannels(4)}
+                  type="button"
+                >
+                  <span className="text-2xl font-bold">4</span>
+                  <p className="mt-1 text-sm text-slate-500">Canales</p>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Step 1: configurar canales */}
+          {onboardingStep === 1 ? (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">Nombra cada canal y define su voltaje:</p>
+              {channelConfigs.map((ch, i) => (
+                <div className="flex gap-3 items-end" key={i}>
+                  <label className="flex-1">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">Canal {i + 1}</span>
+                    <input
+                      className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                      value={ch.name}
+                      onChange={(e) => {
+                        const next = [...channelConfigs];
+                        next[i] = { ...next[i], name: e.target.value };
+                        setChannelConfigs(next);
+                      }}
+                    />
+                  </label>
+                  <label className="w-28">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">Voltaje</span>
+                    <select
+                      className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                      value={ch.voltage}
+                      onChange={(e) => {
+                        const next = [...channelConfigs];
+                        next[i] = { ...next[i], voltage: Number(e.target.value) };
+                        setChannelConfigs(next);
+                      }}
+                    >
+                      <option value={110}>110 V</option>
+                      <option value={220}>220 V</option>
+                    </select>
+                  </label>
+                </div>
+              ))}
+              <button
+                className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 font-medium text-white"
+                onClick={() => setOnboardingStep(2)}
+                type="button"
+              >
+                Continuar
+              </button>
+            </div>
+          ) : null}
+
+          {/* Step 2: vincular dispositivo */}
+          {onboardingStep === 2 ? (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">Ingresa el codigo MQTT de tu ESP32 y un nombre para identificarlo:</p>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Nombre del dispositivo</span>
+                <input
+                  className="h-11 w-full rounded-md border border-line px-3 outline-none focus:border-brand"
+                  placeholder="Ej: Piso 1, Sala de maquinas"
+                  value={deviceName}
+                  onChange={(e) => setDeviceName(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Codigo MQTT</span>
+                <input
+                  className="h-11 w-full rounded-md border border-line px-3 font-mono text-sm outline-none focus:border-brand"
+                  placeholder="Ej: 3C8A1F50727C"
+                  value={deviceCode}
+                  onChange={(e) => setDeviceCode(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-slate-400">Este codigo viene configurado en tu ESP32</p>
+              </label>
+              {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+              <button
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 font-medium text-white disabled:opacity-60"
+                disabled={linking || !deviceCode.trim() || !deviceName.trim()}
+                onClick={handleLinkDevice}
+                type="button"
+              >
+                {linking ? "Vinculando..." : "Vincular dispositivo"}
+              </button>
+            </div>
+          ) : null}
+        </section>
+      </main>
+    );
+  }
+
+  if (onboardingStep === 3) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-panel px-4 py-8 text-ink">
+        <section className="w-full max-w-md rounded-lg border border-line bg-white p-6 shadow-sm text-center">
+          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-green-100 text-green-700">
+            <Zap size={32} />
+          </div>
+          <h2 className="text-xl font-semibold">Dispositivo configurado</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Tu dispositivo <strong>{deviceName}</strong> ya esta vinculado y listo para recibir datos.
+          </p>
+          <button
+            className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 font-medium text-white"
+            onClick={() => { setOnboardingStep(4); void loadDashboard(token); }}
+            type="button"
+          >
+            Ir al dashboard
+          </button>
         </section>
       </main>
     );
@@ -476,17 +720,17 @@ export default function App() {
             <form className="mb-4 grid gap-3 rounded-md border border-line bg-slate-50 p-3 md:grid-cols-[1fr_1fr_auto]" onSubmit={handleCreateDevice}>
               <input
                 className="h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                onChange={(event) => setDeviceName(event.target.value)}
+                onChange={(event) => setCreateDeviceName(event.target.value)}
                 placeholder="Nombre del dispositivo"
                 required
-                value={deviceName}
+                value={createDeviceName}
               />
               <input
                 className="h-10 rounded-md border border-line px-3 font-mono text-sm outline-none focus:border-brand"
-                onChange={(event) => setDeviceCode(event.target.value)}
+                onChange={(event) => setCreateDeviceCode(event.target.value)}
                 placeholder="codigo-mqtt"
                 required
-                value={deviceCode}
+                value={createDeviceCode}
               />
               <button
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-3 text-sm font-medium text-white disabled:opacity-60"

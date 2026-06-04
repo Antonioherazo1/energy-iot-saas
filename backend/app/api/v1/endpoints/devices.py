@@ -25,6 +25,34 @@ def list_devices(current_user: User = Depends(get_current_user), db: Session = D
     return list(db.scalars(select(Device).where(Device.organization_id.in_(organization_ids)).order_by(Device.name)))
 
 
+@router.post("/link", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)
+def link_device(payload: DeviceCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Device:
+    membership = db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == payload.organization_id,
+            OrganizationMember.user_id == current_user.id,
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to organization")
+
+    organization = db.get(Organization, payload.organization_id)
+    device_count = db.scalar(select(func.count(Device.id)).where(Device.organization_id == payload.organization_id)) or 0
+    if organization and device_count >= organization.device_limit:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device limit reached for current plan")
+
+    device = Device(
+        organization_id=payload.organization_id,
+        name=payload.name,
+        code=payload.code,
+        device_key_hash=None,
+    )
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+    return device
+
+
 @router.post("", response_model=DeviceWithCredentials, status_code=status.HTTP_201_CREATED)
 def create_device(payload: DeviceCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     membership = db.scalar(

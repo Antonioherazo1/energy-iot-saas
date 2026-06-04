@@ -1,5 +1,6 @@
 import type {
   DashboardSummary,
+  Device,
   DeviceWithCredentials,
   DeviceStatus,
   EnergyBucket,
@@ -102,6 +103,12 @@ export function login(email: string, password: string): Promise<TokenResponse> {
   return request<TokenResponse>("/auth/login", { body: { email, password } });
 }
 
+export function signup(email: string, password: string, fullName: string, organizationName: string): Promise<TokenResponse> {
+  return request<TokenResponse>("/auth/register", {
+    body: { email, password, full_name: fullName, organization_name: organizationName },
+  });
+}
+
 export function getCurrentUser(token: string): Promise<User> {
   return request<User>("/auth/me", { token });
 }
@@ -172,4 +179,18 @@ export function getTelemetryByRange(token: string, start: string, end: string, l
     `/dashboard/telemetry/range?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&limit=${limit}`,
     { token }
   );
+}
+
+export function linkDevice(token: string, organizationId: string, name: string, code: string): Promise<Device> {
+  return request<Device>("/devices/link", {
+    token,
+    body: { organization_id: organizationId, name, code },
+  });
+}
+
+export function setupChannels(token: string, deviceId: string, channels: Array<{ channel_number: number; name: string; voltage: number }>): Promise<unknown> {
+  return request(`/devices/${deviceId}/channels/setup`, {
+    token,
+    body: channels,
+  });
 }
