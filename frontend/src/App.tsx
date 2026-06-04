@@ -769,7 +769,7 @@ export default function App() {
                     <p className="text-xs text-slate-500">{ch.voltage} V</p>
                     <p><span className="font-semibold">{currentVal.toFixed(2)}</span> A</p>
                     <p><span className="font-semibold">{powerVal.toFixed(1)}</span> W</p>
-                    <p className="text-xs text-slate-500">{energyVal.toFixed(3)} kWh</p>
+                    <p className="text-xs text-slate-500">{energyVal.toFixed(6)} kWh</p>
                   </div>
                 </Panel>
               );
@@ -814,7 +814,7 @@ export default function App() {
                   return (
                     <div className="flex justify-between border-b border-slate-100 py-1" key={ch.id}>
                       <span className="text-slate-600">{ch.name}</span>
-                      <span className="font-semibold">{chEnergy.toFixed(3)} kWh</span>
+                      <span className="font-semibold">{chEnergy.toFixed(6)} kWh</span>
                     </div>
                   );
                 })

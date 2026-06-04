@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -66,6 +66,10 @@ def latest_telemetry_query(organization_ids: list[uuid.UUID]) -> Select:
             Telemetry.ch2,
             Telemetry.ch3,
             Telemetry.ch4,
+            Telemetry.ch1_energy_kwh,
+            Telemetry.ch2_energy_kwh,
+            Telemetry.ch3_energy_kwh,
+            Telemetry.ch4_energy_kwh,
             func.row_number()
             .over(partition_by=Telemetry.device_id, order_by=Telemetry.recorded_at.desc())
             .label("row_number"),
@@ -89,6 +93,10 @@ def latest_telemetry_query(organization_ids: list[uuid.UUID]) -> Select:
             latest.c.ch2,
             latest.c.ch3,
             latest.c.ch4,
+            latest.c.ch1_energy_kwh,
+            latest.c.ch2_energy_kwh,
+            latest.c.ch3_energy_kwh,
+            latest.c.ch4_energy_kwh,
         )
         .outerjoin(latest, and_(latest.c.device_id == Device.id, latest.c.row_number == 1))
         .where(Device.organization_id.in_(organization_ids))
@@ -193,7 +201,7 @@ def get_channel_day_series(
     if device is None or device.organization_id not in org_ids:
         return []
 
-    day_start = datetime.fromisoformat(date).replace(hour=0, minute=0, second=0, microsecond=0)
+    day_start = datetime.fromisoformat(date).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
     day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
 
     channels_map = {
