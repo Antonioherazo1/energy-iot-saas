@@ -10,6 +10,7 @@ import {
   getCurrentUser,
   getDashboardWebSocketUrl,
   getDailyEnergy,
+  getDeviceChannels,
   getDeviceStatus,
   getLatestTelemetry,
   getMonthlyEnergy,
@@ -19,10 +20,11 @@ import {
   signup,
   downloadTelemetryCsv,
   getTelemetryByRange,
+  getChannelDaySeries,
   linkDevice,
   setupChannels,
 } from "./lib/api";
-import type { DashboardSummary, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
+import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
 const tokenKey = "energy_iot_access_token";
 const refreshKey = "energy_iot_refresh_token";
@@ -30,6 +32,8 @@ const refreshKey = "energy_iot_refresh_token";
 function numeric(value: string | null | undefined): number {
   return Number(value ?? 0);
 }
+
+
 
 function formatNumber(value: string | number | null | undefined, suffix = "") {
   const number = Number(value ?? 0);
@@ -75,6 +79,11 @@ export default function App() {
   const [deviceCode, setDeviceCode] = useState("");
   const [deviceName, setDeviceName] = useState("");
   const [linking, setLinking] = useState(false);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [deviceChannels, setDeviceChannels] = useState<DeviceChannel[]>([]);
+  const [dayDate, setDayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [daySeries, setDaySeries] = useState<LatestTelemetry[]>([]);
+  const [dayLoading, setDayLoading] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [rangeData, setRangeData] = useState<LatestTelemetry[]>([]);
@@ -108,6 +117,9 @@ export default function App() {
       setMonthly(monthlyData.reverse());
       setChannelData(channels);
       setLastUpdatedAt(new Date());
+      if (deviceData.length > 0 && !selectedDeviceId) {
+        setSelectedDeviceId(deviceData[0].device_id);
+      }
       if (orgData.length > 0 && deviceData.length === 0 && onboardingStep === 0) {
         setOnboardingStep(0);
       } else if (deviceData.length > 0) {
@@ -239,6 +251,41 @@ export default function App() {
       setRangeLoading(false);
     }
   }
+
+  async function loadDeviceChannels(deviceId: string) {
+    if (!token) return;
+    try {
+      const channels = await getDeviceChannels(token, deviceId);
+      setDeviceChannels(channels);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function loadDaySeries() {
+    if (!token || !selectedDeviceId || !dayDate) return;
+    setDayLoading(true);
+    try {
+      const data = await getChannelDaySeries(token, selectedDeviceId, dayDate);
+      setDaySeries(data);
+    } catch {
+      // ignore
+    } finally {
+      setDayLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (selectedDeviceId) {
+      void loadDeviceChannels(selectedDeviceId);
+    }
+  }, [selectedDeviceId]);
+
+  useEffect(() => {
+    if (selectedDeviceId) {
+      void loadDaySeries();
+    }
+  }, [selectedDeviceId, dayDate]);
 
   useEffect(() => {
     if (token && onboardingStep === 0 && user === null) {
@@ -401,6 +448,44 @@ export default function App() {
       ]
     };
   }, [monthly]);
+
+  const channelDayChartOption = useMemo<EChartsOption>(() => {
+    const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
+    const times = daySeries.map((d) => {
+      const t = new Date(d.recorded_at ?? "");
+      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+    });
+    const series = deviceChannels
+      .filter((ch) => ch.is_active)
+      .map((ch) => {
+        const key = `ch${ch.channel_number}_energy_kwh` as keyof LatestTelemetry;
+        return {
+          type: "line" as const,
+          smooth: true,
+          symbol: "none",
+          name: ch.name,
+          data: daySeries.map((d) => numeric(d[key] as string | null)),
+          lineStyle: { color: colors[(ch.channel_number - 1) % colors.length], width: 2 },
+        };
+      });
+    return {
+      grid: { left: 42, right: 16, top: 36, bottom: 34 },
+      tooltip: { trigger: "axis" },
+      legend: { bottom: 0, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
+      xAxis: {
+        type: "category",
+        data: times,
+        axisLabel: { color: "#526071", fontSize: 10 },
+      },
+      yAxis: {
+        type: "value",
+        name: "kWh",
+        axisLabel: { color: "#526071" },
+        splitLine: { lineStyle: { color: "#e4e8ef" } },
+      },
+      series,
+    };
+  }, [daySeries, deviceChannels]);
 
   if (!token || !user || (onboardingStep === 0 && user === null)) {
     const signingUp = authMode === "signup";
@@ -696,6 +781,73 @@ export default function App() {
           <Metric title="Potencia actual" value={formatNumber(summary?.current_power, " W")} icon={<Zap size={18} />} />
           <Metric title="Energia acumulada" value={formatNumber(summary?.latest_energy_kwh, " kWh")} icon={<PlugZap size={18} />} />
         </div>
+
+        <div className="mt-6">
+          <div className="flex flex-wrap gap-2 border-b border-line pb-2">
+            {latest.map((lt) => (
+              <button
+                key={lt.device_id}
+                className={`rounded-md px-4 py-2 text-sm font-medium ${
+                  selectedDeviceId === lt.device_id
+                    ? "bg-brand text-white"
+                    : "bg-white text-ink border border-line hover:bg-slate-50"
+                }`}
+                onClick={() => setSelectedDeviceId(lt.device_id)}
+                type="button"
+              >
+                {lt.device_name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {selectedDeviceId && deviceChannels.length > 0 ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {deviceChannels.map((ch) => {
+              const lt = latest.find((l) => l.device_id === selectedDeviceId);
+              const currentVal = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
+              const powerVal = currentVal * ch.voltage;
+              const energyVal = lt ? numeric(lt[`ch${ch.channel_number}_energy_kwh` as keyof LatestTelemetry] as string | null) : 0;
+              return (
+                <Panel key={ch.id} title={`${ch.name}`}>
+                  <div className="space-y-1 text-sm">
+                    <p className="text-xs text-slate-500">{ch.voltage} V</p>
+                    <p><span className="font-semibold">{currentVal.toFixed(2)}</span> A</p>
+                    <p><span className="font-semibold">{powerVal.toFixed(1)}</span> W</p>
+                    <p className="text-xs text-slate-500">{energyVal.toFixed(3)} kWh</p>
+                  </div>
+                </Panel>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <div className="mt-6">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Fecha</label>
+              <input
+                className="h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                type="date"
+                value={dayDate}
+                onChange={(e) => setDayDate(e.target.value)}
+              />
+            </div>
+            {selectedDeviceId && deviceChannels.length > 0 ? (
+              <span className="pb-2 text-xs text-slate-500">
+                {daySeries.length} registros{dayLoading ? " · cargando..." : ""}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {selectedDeviceId && daySeries.length > 0 && deviceChannels.length > 0 ? (
+          <div className="mt-4">
+            <Panel title="Energia por canal (kWh)">
+              <Chart option={channelDayChartOption} />
+            </Panel>
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-4 xl:grid-cols-3">
           <Panel title="Potencia por dispositivo">

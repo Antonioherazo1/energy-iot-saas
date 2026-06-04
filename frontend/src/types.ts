@@ -64,6 +64,19 @@ export type LatestTelemetry = {
   ch2: string | null;
   ch3: string | null;
   ch4: string | null;
+  ch1_energy_kwh: string | null;
+  ch2_energy_kwh: string | null;
+  ch3_energy_kwh: string | null;
+  ch4_energy_kwh: string | null;
+};
+
+export type DeviceChannel = {
+  id: string;
+  device_id: string;
+  channel_number: number;
+  name: string;
+  voltage: number;
+  is_active: boolean;
 };
 
 export type EnergyBucket = {

@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import Select, and_, case, desc, func, select
 from sqlalchemy.orm import Session
 
+from app.models.channel import DeviceChannel
 from app.models.device import Device
 from app.models.organization import OrganizationMember
 from app.models.telemetry import Telemetry
@@ -163,6 +164,10 @@ def get_channel_time_series(
             Telemetry.ch3,
             Telemetry.ch4,
             Telemetry.power,
+            Telemetry.ch1_energy_kwh,
+            Telemetry.ch2_energy_kwh,
+            Telemetry.ch3_energy_kwh,
+            Telemetry.ch4_energy_kwh,
         )
         .join(Device, Device.id == Telemetry.device_id)
         .where(
@@ -174,6 +179,63 @@ def get_channel_time_series(
     )
     result = [dict(row._mapping) for row in rows]
     result.reverse()
+    return result
+
+
+def get_channel_day_series(
+    db: Session,
+    user: User,
+    device_id: uuid.UUID,
+    date: str,
+) -> list[dict]:
+    org_ids = get_accessible_organization_ids(db, user)
+    device = db.get(Device, device_id)
+    if device is None or device.organization_id not in org_ids:
+        return []
+
+    day_start = datetime.fromisoformat(date).replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    channels_map = {
+        ch.channel_number: ch
+        for ch in db.scalars(
+            select(DeviceChannel).where(
+                DeviceChannel.device_id == device.id,
+                DeviceChannel.is_active.is_(True),
+            )
+        )
+    }
+
+    rows = db.execute(
+        select(
+            Telemetry.recorded_at,
+            Telemetry.ch1,
+            Telemetry.ch2,
+            Telemetry.ch3,
+            Telemetry.ch4,
+            Telemetry.ch1_energy_kwh,
+            Telemetry.ch2_energy_kwh,
+            Telemetry.ch3_energy_kwh,
+            Telemetry.ch4_energy_kwh,
+        )
+        .where(
+            Telemetry.device_id == device.id,
+            Telemetry.recorded_at >= day_start,
+            Telemetry.recorded_at <= day_end,
+            Telemetry.ch1.is_not(None),
+        )
+        .order_by(Telemetry.recorded_at)
+    )
+
+    result = []
+    for row in rows:
+        entry = dict(row._mapping)
+        for ch_num in range(1, 5):
+            ch_current = entry.get(f"ch{ch_num}")
+            ch_config = channels_map.get(ch_num)
+            ch_voltage = ch_config.voltage if ch_config else Decimal("110")
+            entry[f"ch{ch_num}_power"] = ch_current * ch_voltage if ch_current else None
+        result.append(entry)
     return result
 
 

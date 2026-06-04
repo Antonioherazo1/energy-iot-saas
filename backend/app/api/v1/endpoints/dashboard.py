@@ -14,7 +14,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.schemas.dashboard import DashboardSummaryRead, DeviceStatusRead, EnergyBucketRead, LatestTelemetryRead
-from app.services.dashboard_service import get_accessible_organization_ids, get_device_status, get_energy_by_period, get_latest_telemetry, get_summary
+from app.services.dashboard_service import get_accessible_organization_ids, get_channel_day_series, get_device_status, get_energy_by_period, get_latest_telemetry, get_summary
 
 router = APIRouter()
 
@@ -71,6 +71,16 @@ def channels_latest(
 ) -> list[dict]:
     from app.services.dashboard_service import get_channel_time_series
     return get_channel_time_series(db=db, user=current_user, organization_id=organization_id, limit=limit)
+
+
+@router.get("/channels/day")
+def channels_day(
+    device_id: uuid.UUID,
+    date: str = Query(description="ISO date YYYY-MM-DD"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return get_channel_day_series(db=db, user=current_user, device_id=device_id, date=date)
 
 
 @router.get("/energy/monthly", response_model=list[EnergyBucketRead])

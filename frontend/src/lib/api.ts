@@ -1,6 +1,7 @@
 import type {
   DashboardSummary,
   Device,
+  DeviceChannel,
   DeviceWithCredentials,
   DeviceStatus,
   EnergyBucket,
@@ -193,4 +194,15 @@ export function setupChannels(token: string, deviceId: string, channels: Array<{
     token,
     body: channels,
   });
+}
+
+export function getDeviceChannels(token: string, deviceId: string): Promise<DeviceChannel[]> {
+  return request<DeviceChannel[]>(`/devices/${deviceId}/channels`, { token });
+}
+
+export function getChannelDaySeries(token: string, deviceId: string, date: string): Promise<LatestTelemetry[]> {
+  return request<LatestTelemetry[]>(
+    `/dashboard/channels/day?device_id=${deviceId}&date=${date}`,
+    { token }
+  );
 }
