@@ -1,6 +1,6 @@
 """add device_channels table and per-channel energy columns
 
-Revision ID: 0004_device_channels_and_per_channel_energy
+Revision ID: 0004_add_device_channels
 Revises: 0003_add_channel_columns
 Create Date: 2026-06-04
 """
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0004_device_channels_and_per_channel_energy"
+revision: str = "0004_add_device_channels"
 down_revision: str | None = "0003_add_channel_columns"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
