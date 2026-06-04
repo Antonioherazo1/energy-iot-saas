@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.channel import DeviceChannel
 from app.models.device import Device
@@ -166,13 +167,21 @@ def update_channel(
         )
     )
     if channel is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
-    if payload.name is not None:
-        channel.name = payload.name
-    if payload.voltage is not None:
-        channel.voltage = payload.voltage
-    if payload.is_active is not None:
-        channel.is_active = payload.is_active
+        channel = DeviceChannel(
+            device_id=device.id,
+            channel_number=channel_number,
+            name=payload.name or f"Canal {channel_number}",
+            voltage=payload.voltage or settings.assumed_voltage,
+            is_active=payload.is_active if payload.is_active is not None else True,
+        )
+        db.add(channel)
+    else:
+        if payload.name is not None:
+            channel.name = payload.name
+        if payload.voltage is not None:
+            channel.voltage = payload.voltage
+        if payload.is_active is not None:
+            channel.is_active = payload.is_active
     db.commit()
     db.refresh(channel)
     return channel
