@@ -190,6 +190,36 @@ def get_channel_time_series(
     return result
 
 
+def get_realtime_currents(
+    db: Session,
+    user: User,
+    device_id: uuid.UUID,
+    minutes: int = 10,
+) -> list[dict]:
+    org_ids = get_accessible_organization_ids(db, user)
+    device = db.get(Device, device_id)
+    if device is None or device.organization_id not in org_ids:
+        return []
+
+    since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    rows = db.execute(
+        select(
+            Telemetry.recorded_at,
+            Telemetry.ch1,
+            Telemetry.ch2,
+            Telemetry.ch3,
+            Telemetry.ch4,
+        )
+        .where(
+            Telemetry.device_id == device.id,
+            Telemetry.recorded_at >= since,
+            Telemetry.ch1.is_not(None),
+        )
+        .order_by(Telemetry.recorded_at)
+    )
+    return [dict(row._mapping) for row in rows]
+
+
 def get_channel_day_series(
     db: Session,
     user: User,

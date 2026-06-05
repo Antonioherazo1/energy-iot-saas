@@ -202,6 +202,13 @@ export function getDeviceChannels(token: string, deviceId: string): Promise<Devi
   return request<DeviceChannel[]>(`/devices/${deviceId}/channels`, { token });
 }
 
+export function getRealtimeCurrents(token: string, deviceId: string, minutes = 10): Promise<LatestTelemetry[]> {
+  return request<LatestTelemetry[]>(
+    `/dashboard/channels/realtime?device_id=${deviceId}&minutes=${minutes}`,
+    { token }
+  );
+}
+
 export function getChannelDaySeries(token: string, deviceId: string, date: string): Promise<LatestTelemetry[]> {
   return request<LatestTelemetry[]>(
     `/dashboard/channels/day?device_id=${deviceId}&date=${date}`,
