@@ -128,8 +128,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       setMonthly(monthlyData.reverse());
       setChannelData(channels);
       setLastUpdatedAt(new Date());
-      if (deviceData.length > 0 && !selectedDeviceId) {
-        setSelectedDeviceId(deviceData[0].device_id);
+      if (deviceData.length > 0) {
+        const stillExists = selectedDeviceId && deviceData.some((d) => d.device_id === selectedDeviceId);
+        if (!stillExists) {
+          setSelectedDeviceId(deviceData[0].device_id);
+        }
+      } else {
+        setSelectedDeviceId(null);
       }
       if (orgData.length > 0 && deviceData.length === 0 && onboardingStep === 0) {
         setOnboardingStep(0);
@@ -377,7 +382,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
 
     const times = filtered.map((d) => {
       const t = new Date(d.recorded_at ?? "");
-      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: false });
     });
 
     const activeChannels = deviceChannels.length > 0
@@ -401,7 +406,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       }));
 
     return {
-      grid: { left: 42, right: 16, top: 36, bottom: 34 },
+      grid: { left: 56, right: 16, top: 36, bottom: 34 },
       tooltip: { trigger: "axis" },
       legend: { bottom: 0, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
       xAxis: {
@@ -429,7 +434,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
     const times = currentBuffer.map((d) => {
       const t = new Date(d.recorded_at ?? "");
-      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
     });
     const series = deviceChannels
       .filter((ch) => ch.is_active)
@@ -445,7 +450,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         };
       });
     return {
-      grid: { left: 42, right: 16, top: 36, bottom: 34 },
+      grid: { left: 56, right: 16, top: 36, bottom: 34 },
       tooltip: { trigger: "axis" },
       legend: { bottom: 0, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
       xAxis: {
@@ -833,25 +838,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </div>
         ) : null}
 
-        <div className="mt-6">
-          <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Fecha</label>
-              <input
-                className="h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                type="date"
-                value={dayDate}
-                onChange={(e) => setDayDate(e.target.value)}
-              />
-            </div>
-            {selectedDeviceId && deviceChannels.length > 0 ? (
-              <span className="pb-2 text-xs text-slate-500">
-                {daySeries.length} registros{dayLoading ? " · cargando..." : ""}
-              </span>
-            ) : null}
-          </div>
-        </div>
-
         <div className="mt-4 overflow-x-auto">
             <Panel title="Corriente por canal (A) - Tiempo real">
               {bufferLoading ? (
@@ -880,6 +866,22 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </div>
 
         <div className="mt-6 overflow-x-auto">
+          <div className="flex flex-wrap items-end gap-4 mb-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Fecha</label>
+              <input
+                className="h-10 w-40 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                type="date"
+                value={dayDate}
+                onChange={(e) => setDayDate(e.target.value)}
+              />
+            </div>
+            {selectedDeviceId && deviceChannels.length > 0 ? (
+              <span className="pb-2 text-xs text-slate-500">
+                {daySeries.length} registros{dayLoading ? " · cargando..." : ""}
+              </span>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-end gap-4 mb-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">Hora desde</label>
