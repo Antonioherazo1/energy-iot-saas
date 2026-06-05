@@ -223,3 +223,7 @@ export function updateChannel(token: string, deviceId: string, channelNumber: nu
     body: data,
   });
 }
+
+export function deleteDevice(token: string, deviceId: string): Promise<void> {
+  return request<void>(`/devices/${deviceId}`, { method: "DELETE", token });
+}

@@ -22,6 +22,7 @@ import {
   downloadTelemetryCsv,
   getTelemetryByRange,
   getChannelDaySeries,
+  deleteDevice,
   linkDevice,
   setupChannels,
   updateChannel,
@@ -88,8 +89,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
   const [currentBuffer, setCurrentBuffer] = useState<LatestTelemetry[]>([]);
   const [bufferLoading, setBufferLoading] = useState(false);
+  const [realtimeMinutes, setRealtimeMinutes] = useState(10);
   const [channelHourFrom, setChannelHourFrom] = useState(0);
-  const [channelHourTo, setChannelHourTo] = useState(24);
+  const [channelHourTo, setChannelHourTo] = useState(() => Math.max(1, Math.min(24, new Date().getHours() + 1)));
   const [showChannelConfig, setShowChannelConfig] = useState(false);
   const [configChannels, setConfigChannels] = useState<DeviceChannel[]>([]);
   const [savingChannels, setSavingChannels] = useState(false);
@@ -299,7 +301,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   async function loadRealtimeBuffer() {
     if (!token || !selectedDeviceId) return;
     try {
-      const data = await getRealtimeCurrents(token, selectedDeviceId, 10);
+      const data = await getRealtimeCurrents(token, selectedDeviceId, realtimeMinutes);
       setCurrentBuffer(data);
     } catch {
       // ignore
@@ -312,7 +314,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     void loadRealtimeBuffer();
     const interval = window.setInterval(loadRealtimeBuffer, 5000);
     return () => window.clearInterval(interval);
-  }, [token, selectedDeviceId]);
+  }, [token, selectedDeviceId, realtimeMinutes]);
 
   useEffect(() => {
     if (token && onboardingStep === 0 && user === null) {
@@ -408,6 +410,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         axisLabel: {
           color: "#526071",
           fontSize: 10,
+          rotate: 90,
           showMaxLabel: true,
           interval: Math.max(1, Math.floor(times.length / 24)),
         },
@@ -451,6 +454,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         axisLabel: {
           color: "#526071",
           fontSize: 10,
+          rotate: 90,
           showMaxLabel: true,
           interval: Math.max(1, Math.floor(times.length / 24)),
         },
@@ -752,7 +756,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       <section className="mx-auto max-w-7xl px-4 py-6">
         {error ? <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           <Metric title="Dispositivos" value={summary?.total_devices ?? 0} icon={<Gauge size={18} />} />
           <Metric title="Online" value={summary?.online_devices ?? 0} icon={<Activity size={18} />} tone="ok" />
           <Metric title="Offline" value={summary?.offline_devices ?? 0} icon={<Activity size={18} />} tone="warn" />
@@ -788,12 +792,29 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 Configurar canales
               </button>
             )}
+            {selectedDeviceId && (
+              <button
+                className="rounded-md px-4 py-2 text-sm font-medium border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                onClick={async () => {
+                  if (!window.confirm("¿Eliminar este dispositivo? Se borrarán todos sus datos.")) return;
+                  try {
+                    await deleteDevice(token, selectedDeviceId);
+                    await loadDashboard(token);
+                  } catch {
+                    alert("Error al eliminar el dispositivo");
+                  }
+                }}
+                type="button"
+              >
+                Eliminar
+              </button>
+            )}
           </div>
         </div>
 
         {selectedDeviceId && deviceChannels.length > 0 ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {deviceChannels.map((ch) => {
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
               const lt = latest.find((l) => l.device_id === selectedDeviceId);
               const currentVal = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
               const powerVal = currentVal * ch.voltage;
@@ -831,24 +852,34 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </div>
         </div>
 
-        {selectedDeviceId && deviceChannels.length > 0 ? (
-          <div className="mt-4">
+        <div className="mt-4 overflow-x-auto">
             <Panel title="Corriente por canal (A) - Tiempo real">
               {bufferLoading ? (
                 <div className="flex items-center justify-center py-8 text-sm text-slate-500">Cargando...</div>
               ) : currentBuffer.length === 0 ? (
-                <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos en los últimos 10 minutos</div>
+                <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos en los últimos {realtimeMinutes} minutos</div>
               ) : (
                 <Chart option={realtimeCurrentOption} />
               )}
-              <div className="mt-1 text-right text-xs text-slate-400">
-                {currentBuffer.length} registros · actualiza cada 5s
+              <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
+                <div className="flex gap-1">
+                  {[10, 30, 60].map((m) => (
+                    <button
+                      key={m}
+                      className={`rounded px-2 py-0.5 ${realtimeMinutes === m ? "bg-brand text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                      onClick={() => setRealtimeMinutes(m)}
+                      type="button"
+                    >
+                      {m} min
+                    </button>
+                  ))}
+                </div>
+                <span>{currentBuffer.length} registros · actualiza cada 5s</span>
               </div>
             </Panel>
           </div>
-        ) : null}
 
-        <div className="mt-6">
+        <div className="mt-6 overflow-x-auto">
           <div className="flex flex-wrap items-end gap-4 mb-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">Hora desde</label>
@@ -857,6 +888,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 type="number" min={0} max={23}
                 value={channelHourFrom}
                 onChange={(e) => setChannelHourFrom(Number(e.target.value))}
+                onFocus={(e) => e.target.select()}
               />
             </div>
             <div>
@@ -866,6 +898,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 type="number" min={1} max={24}
                 value={channelHourTo}
                 onChange={(e) => setChannelHourTo(Number(e.target.value))}
+                onFocus={(e) => e.target.select()}
               />
             </div>
           </div>
@@ -874,7 +907,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
         </div>
 
-        <div className="mt-6 grid gap-4 xl:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Panel title="Energia por canal (kWh)">
             <div className="space-y-2 text-sm">
               {selectedDeviceId && deviceChannels.length > 0 ? (
@@ -921,7 +954,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
         </div>
 
-        <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
+        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.4fr]">
           <Panel title="Estado de dispositivos">
             <form className="mb-4 grid gap-3 rounded-md border border-line bg-slate-50 p-3 md:grid-cols-[1fr_1fr_auto]" onSubmit={handleCreateDevice}>
               <input
