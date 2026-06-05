@@ -6,6 +6,7 @@ import type { EChartsOption } from "echarts";
 import Chart from "./components/Chart";
 import {
   createDevice,
+  getChannelTimeSeries,
   getCurrentUser,
   getDashboardWebSocketUrl,
   getDailyEnergy,
@@ -65,6 +66,7 @@ const [latest, setLatest] = useState<LatestTelemetry[]>([]);
 const [daily, setDaily] = useState<EnergyBucket[]>([]);
 const [monthly, setMonthly] = useState<EnergyBucket[]>([]);
 const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [channelData, setChannelData] = useState<LatestTelemetry[]>([]);
   const [newDeviceKey, setNewDeviceKey] = useState("");
   const [newDeviceCode, setNewDeviceCode] = useState("");
   const [createDeviceName, setCreateDeviceName] = useState("");
@@ -86,6 +88,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
   const [currentBuffer, setCurrentBuffer] = useState<LatestTelemetry[]>([]);
   const [bufferLoading, setBufferLoading] = useState(false);
+  const [channelHourFrom, setChannelHourFrom] = useState(0);
+  const [channelHourTo, setChannelHourTo] = useState(24);
   const [showChannelConfig, setShowChannelConfig] = useState(false);
   const [configChannels, setConfigChannels] = useState<DeviceChannel[]>([]);
   const [savingChannels, setSavingChannels] = useState(false);
@@ -103,7 +107,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     setLoading(true);
     setError("");
     try {
-      const [currentUser, orgData, summaryData, deviceData, latestData, dailyData, monthlyData] = await Promise.all([
+      const [currentUser, orgData, summaryData, deviceData, latestData, dailyData, monthlyData, channels] = await Promise.all([
         getCurrentUser(activeToken),
         getOrganizations(activeToken),
         getSummary(activeToken),
@@ -111,6 +115,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         getLatestTelemetry(activeToken),
         getDailyEnergy(activeToken),
         getMonthlyEnergy(activeToken),
+        getChannelTimeSeries(activeToken),
       ]);
       setUser(currentUser);
       setOrganizations(orgData);
@@ -119,6 +124,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       setLatest(latestData);
       setDaily(dailyData.reverse());
       setMonthly(monthlyData.reverse());
+      setChannelData(channels);
       setLastUpdatedAt(new Date());
       if (deviceData.length > 0 && !selectedDeviceId) {
         setSelectedDeviceId(deviceData[0].device_id);
@@ -353,6 +359,68 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       socket.close();
     };
   }, [token, user, onboardingStep]);
+
+  const channelsOption = useMemo<EChartsOption>(() => {
+    const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
+    const sourceData = daySeries.length > 0 ? daySeries : channelData;
+
+    const step = Math.max(1, Math.floor(sourceData.length / 200));
+    const sampled = sourceData.filter((_, i) => i % step === 0 || i === sourceData.length - 1);
+
+    const filtered = sampled.filter((d) => {
+      if (!d.recorded_at) return true;
+      const h = new Date(d.recorded_at).getHours();
+      return h >= channelHourFrom && h < channelHourTo;
+    });
+
+    const times = filtered.map((d) => {
+      const t = new Date(d.recorded_at ?? "");
+      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+    });
+
+    const activeChannels = deviceChannels.length > 0
+      ? deviceChannels.filter((ch) => ch.is_active)
+      : [1, 2, 3, 4].map((n) => ({
+          id: `ch${n}`,
+          channel_number: n,
+          name: `Canal ${n}`,
+          voltage: 110,
+          is_active: true,
+        })) as DeviceChannel[];
+
+    const series = activeChannels
+      .map((ch, idx) => ({
+        type: "line" as const,
+        smooth: true,
+        symbol: "none",
+        name: ch.name,
+        data: filtered.map((d) => numeric(d[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null)),
+        lineStyle: { color: colors[idx % colors.length], width: 2 },
+      }));
+
+    return {
+      grid: { left: 42, right: 16, top: 36, bottom: 34 },
+      tooltip: { trigger: "axis" },
+      legend: { bottom: 0, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
+      xAxis: {
+        type: "category",
+        data: times,
+        axisLabel: {
+          color: "#526071",
+          fontSize: 10,
+          showMaxLabel: true,
+          interval: Math.max(1, Math.floor(times.length / 24)),
+        },
+      },
+      yAxis: {
+        type: "value",
+        name: "Amperios",
+        axisLabel: { color: "#526071" },
+        splitLine: { lineStyle: { color: "#e4e8ef" } },
+      },
+      series,
+    };
+  }, [channelData, daySeries, deviceChannels, channelHourFrom, channelHourTo]);
 
   const realtimeCurrentOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
@@ -779,6 +847,32 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </Panel>
           </div>
         ) : null}
+
+        <div className="mt-6">
+          <div className="flex flex-wrap items-end gap-4 mb-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Hora desde</label>
+              <input
+                className="h-10 w-24 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                type="number" min={0} max={23}
+                value={channelHourFrom}
+                onChange={(e) => setChannelHourFrom(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Hora hasta</label>
+              <input
+                className="h-10 w-24 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
+                type="number" min={1} max={24}
+                value={channelHourTo}
+                onChange={(e) => setChannelHourTo(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          <Panel title="Corriente por canal (A) - Histórico">
+            <Chart option={channelsOption} />
+          </Panel>
+        </div>
 
         <div className="mt-6 grid gap-4 xl:grid-cols-3">
           <Panel title="Energia por canal (kWh)">
