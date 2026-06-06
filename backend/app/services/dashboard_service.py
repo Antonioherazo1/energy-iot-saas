@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import Select, and_, case, desc, func, select
+from sqlalchemy import Numeric, Select, and_, case, desc, func, select
 from sqlalchemy.orm import Session
 
 from app.models.channel import DeviceChannel
@@ -166,30 +166,43 @@ def get_billing_monthly_energy(
 
     safe_limit = max(1, min(limit, 24))
     shift_days = billing_start_day - 1
-    shifted_bucket = func.date_trunc(
-        "month",
-        Telemetry.recorded_at - func.make_interval(0, 0, 0, shift_days),
-    ).label("period")
 
-    per_device_period = (
+    prev_ts = func.lag(Telemetry.recorded_at).over(
+        partition_by=Telemetry.device_id,
+        order_by=Telemetry.recorded_at,
+    )
+    delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+    energy_delta = Telemetry.power * func.cast(delta_expr, Numeric(20, 10))
+
+    shifted_ts = Telemetry.recorded_at - func.make_interval(0, 0, 0, shift_days)
+    shifted_bucket = func.date_trunc("month", shifted_ts).label("period")
+
+    cte = (
         select(
             shifted_bucket,
             Telemetry.device_id,
-            (func.max(Telemetry.energy_kwh) - func.min(Telemetry.energy_kwh)).label("energy_kwh"),
+            case(
+                (and_(prev_ts.is_not(None), energy_delta > 0), energy_delta),
+                else_=0,
+            ).label("energy_delta"),
         )
         .join(Device, Device.id == Telemetry.device_id)
-        .where(Device.organization_id.in_(organization_ids), Telemetry.energy_kwh.is_not(None))
-        .group_by(shifted_bucket, Telemetry.device_id)
-        .subquery()
+        .where(
+            Device.organization_id.in_(organization_ids),
+            Telemetry.power.is_not(None),
+            Telemetry.power >= 0,
+        )
+        .cte("energy_cte")
     )
 
     rows = db.execute(
         select(
-            per_device_period.c.period,
-            func.coalesce(func.sum(per_device_period.c.energy_kwh), 0).label("energy_kwh"),
+            cte.c.period,
+            func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
         )
-        .group_by(per_device_period.c.period)
-        .order_by(desc(per_device_period.c.period))
+        .where(cte.c.energy_delta > 0)
+        .group_by(cte.c.period)
+        .order_by(desc(cte.c.period))
         .limit(safe_limit)
     )
     return [
@@ -213,30 +226,42 @@ def get_billing_current_daily(
     if period_start > now:
         period_start = (period_start.replace(day=1) - timedelta(days=1)).replace(day=billing_start_day, hour=0, minute=0, second=0, microsecond=0)
 
+    prev_ts = func.lag(Telemetry.recorded_at).over(
+        partition_by=Telemetry.device_id,
+        order_by=Telemetry.recorded_at,
+    )
+    delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+    energy_delta = Telemetry.power * func.cast(delta_expr, Numeric(20, 10))
+
     bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
-    per_device_day = (
+
+    cte = (
         select(
             bucket,
             Telemetry.device_id,
-            (func.max(Telemetry.energy_kwh) - func.min(Telemetry.energy_kwh)).label("energy_kwh"),
+            case(
+                (and_(prev_ts.is_not(None), energy_delta > 0), energy_delta),
+                else_=0,
+            ).label("energy_delta"),
         )
         .join(Device, Device.id == Telemetry.device_id)
         .where(
             Device.organization_id.in_(organization_ids),
-            Telemetry.energy_kwh.is_not(None),
+            Telemetry.power.is_not(None),
+            Telemetry.power >= 0,
             Telemetry.recorded_at >= period_start,
         )
-        .group_by(bucket, Telemetry.device_id)
-        .subquery()
+        .cte("energy_cte")
     )
 
     rows = db.execute(
         select(
-            per_device_day.c.period,
-            func.coalesce(func.sum(per_device_day.c.energy_kwh), 0).label("energy_kwh"),
+            cte.c.period,
+            func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
         )
-        .group_by(per_device_day.c.period)
-        .order_by(per_device_day.c.period)
+        .where(cte.c.energy_delta > 0)
+        .group_by(cte.c.period)
+        .order_by(cte.c.period)
     )
     return [
         {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0")}
