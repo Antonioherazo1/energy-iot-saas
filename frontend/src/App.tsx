@@ -954,17 +954,25 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               )}
             </div>
           </Panel>
-          <Panel title="Consumo diario">
+          <Panel title="Consumo del período">
             {(() => {
-              const dailyTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
+              const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
               const days = billingDaily.map((d) => {
                 const parts = d.period.split("-");
                 return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d.period;
               });
               const vals = billingDaily.map((d) => numeric(d.energy_kwh));
+              const dayCount = billingDaily.length;
+              const avgDaily = dayCount > 0 ? periodTotal / dayCount : 0;
+              const now = new Date();
+              const billingDate = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
+              if (billingDate > now) billingDate.setMonth(billingDate.getMonth() - 1);
+              const periodStartStr = billingDate.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+              const todayStr = now.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               return (
                 <div className="space-y-2 text-sm">
-                  <p className="text-3xl font-semibold text-brand">{dailyTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                  <p className="text-3xl font-semibold text-brand">{periodTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                  <p className="text-xs text-slate-400">{periodStartStr} → {todayStr} · ~{avgDaily.toFixed(1)} kWh/día</p>
                   {billingDaily.length > 0 && (
                     <Chart option={{
                       grid: { left: 36, right: 8, top: 8, bottom: 28 },
@@ -978,9 +986,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               );
             })()}
           </Panel>
-          <Panel title="Consumo mensual">
+          <Panel title="Comparativo mensual">
             {(() => {
-              const monthTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
+              const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
               const now = new Date();
               const billingDate = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
               if (billingDate > now) billingDate.setMonth(billingDate.getMonth() - 1);
@@ -989,7 +997,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               return (
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
-                    <p className="text-3xl font-semibold text-accent">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                    <div>
+                      <p className="text-3xl font-semibold text-accent">{periodTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                      <p className="text-xs text-slate-400">Desde {periodStart} hasta {todayStr}</p>
+                    </div>
                     <div className="flex items-center gap-1 text-xs">
                       <span className="text-slate-400">Corte dia</span>
                       <input
@@ -1006,7 +1017,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-slate-400">Desde {periodStart} hasta {todayStr}</p>
                   {billingMonthly.length > 0 && (
                     <div className="mt-3">
                       <Chart option={{
