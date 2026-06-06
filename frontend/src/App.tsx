@@ -6,6 +6,8 @@ import type { EChartsOption } from "echarts";
 import Chart from "./components/Chart";
 import {
   createDevice,
+  getBillingDailyEnergy,
+  getBillingMonthlyEnergy,
   getChannelTimeSeries,
   getCurrentUser,
   getDashboardWebSocketUrl,
@@ -90,6 +92,12 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentBuffer, setCurrentBuffer] = useState<LatestTelemetry[]>([]);
   const [bufferLoading, setBufferLoading] = useState(false);
   const [realtimeMinutes, setRealtimeMinutes] = useState(10);
+  const [billingStartDay, setBillingStartDay] = useState(() => {
+    const saved = localStorage.getItem("billing_start_day");
+    return saved ? Number(saved) : 1;
+  });
+  const [billingDaily, setBillingDaily] = useState<EnergyBucket[]>([]);
+  const [billingMonthly, setBillingMonthly] = useState<EnergyBucket[]>([]);
   const [channelHourFrom, setChannelHourFrom] = useState(0);
   const [channelHourTo, setChannelHourTo] = useState(() => Math.max(1, Math.min(24, new Date().getHours() + 1)));
   const [showChannelConfig, setShowChannelConfig] = useState(false);
@@ -321,6 +329,20 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     return () => window.clearInterval(interval);
   }, [token, selectedDeviceId, realtimeMinutes]);
 
+  async function loadBillingData() {
+    if (!token) return;
+    try {
+      const [daily, monthly] = await Promise.all([
+        getBillingDailyEnergy(token, billingStartDay),
+        getBillingMonthlyEnergy(token, billingStartDay),
+      ]);
+      setBillingDaily(daily);
+      setBillingMonthly(monthly);
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     if (token && onboardingStep === 0 && user === null) {
       void loadDashboard(token);
@@ -366,6 +388,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       socket.close();
     };
   }, [token, user, onboardingStep]);
+
+  useEffect(() => {
+    if (!token || !user || onboardingStep > 0) return;
+    void loadBillingData();
+  }, [token, user, onboardingStep, billingStartDay]);
 
   const channelsOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
@@ -928,26 +955,72 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
           <Panel title="Consumo diario">
             {(() => {
-              const todayStr = new Date().toISOString().slice(0, 10);
-              const todayBucket = daily.find((d) => d.period.startsWith(todayStr));
-              const dailyTotal = todayBucket ? numeric(todayBucket.energy_kwh) : 0;
+              const dailyTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
+              const days = billingDaily.map((d) => {
+                const parts = d.period.split("-");
+                return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d.period;
+              });
+              const vals = billingDaily.map((d) => numeric(d.energy_kwh));
               return (
-                <div className="space-y-1 text-sm">
+                <div className="space-y-2 text-sm">
                   <p className="text-3xl font-semibold text-brand">{dailyTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-                  <p className="text-xs text-slate-400">{todayStr}</p>
+                  {billingDaily.length > 0 && (
+                    <Chart option={{
+                      grid: { left: 36, right: 8, top: 8, bottom: 28 },
+                      xAxis: { type: "category", data: days, axisLabel: { rotate: 90, fontSize: 9, color: "#526071", interval: Math.max(1, Math.floor(days.length / 15)) } },
+                      yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                      series: [{ type: "bar", data: vals, itemStyle: { color: "#0f766e" } }],
+                      tooltip: { trigger: "axis" },
+                    }} />
+                  )}
                 </div>
               );
             })()}
           </Panel>
           <Panel title="Consumo mensual">
             {(() => {
-              const thisMonth = new Date().toISOString().slice(0, 7);
-              const monthBucket = monthly.find((m) => m.period.startsWith(thisMonth));
-              const monthTotal = monthBucket ? numeric(monthBucket.energy_kwh) : 0;
+              const monthTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
+              const now = new Date();
+              const billingDate = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
+              if (billingDate > now) billingDate.setMonth(billingDate.getMonth() - 1);
+              const periodStart = billingDate.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+              const todayStr = now.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               return (
-                <div className="space-y-1 text-sm">
-                  <p className="text-3xl font-semibold text-accent">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-                  <p className="text-xs text-slate-400">{thisMonth}</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="text-3xl font-semibold text-accent">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="text-slate-400">Corte dia</span>
+                      <input
+                        className="h-7 w-12 rounded border border-line px-2 text-center text-xs outline-none focus:border-brand"
+                        type="number" min={1} max={28}
+                        value={billingStartDay}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          if (v >= 1 && v <= 28) {
+                            setBillingStartDay(v);
+                            localStorage.setItem("billing_start_day", String(v));
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400">Desde {periodStart} hasta {todayStr}</p>
+                  {billingMonthly.length > 0 && (
+                    <div className="mt-3">
+                      <Chart option={{
+                        grid: { left: 36, right: 8, top: 8, bottom: 28 },
+                        xAxis: { type: "category", data: billingMonthly.slice().reverse().map((m) => {
+                          const d = new Date(m.period + "T00:00:00");
+                          d.setDate(d.getDate() + billingStartDay - 1);
+                          return d.toLocaleDateString("es-CO", { month: "short" });
+                        }), axisLabel: { rotate: 90, fontSize: 9, color: "#526071" } },
+                        yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                        series: [{ type: "bar", data: billingMonthly.slice().reverse().map((m) => numeric(m.energy_kwh)), itemStyle: { color: "#2563eb" } }],
+                        tooltip: { trigger: "axis" },
+                      }} />
+                    </div>
+                  )}
                 </div>
               );
             })()}

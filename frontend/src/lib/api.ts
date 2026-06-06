@@ -151,6 +151,14 @@ export function getMonthlyEnergy(token: string): Promise<EnergyBucket[]> {
   return request<EnergyBucket[]>("/dashboard/energy/monthly?limit=12", { token });
 }
 
+export function getBillingMonthlyEnergy(token: string, billingStartDay: number): Promise<EnergyBucket[]> {
+  return request<EnergyBucket[]>(`/dashboard/energy/billing/monthly?billing_start_day=${billingStartDay}&limit=6`, { token });
+}
+
+export function getBillingDailyEnergy(token: string, billingStartDay: number): Promise<EnergyBucket[]> {
+  return request<EnergyBucket[]>(`/dashboard/energy/billing/daily?billing_start_day=${billingStartDay}`, { token });
+}
+
 export function getChannelTimeSeries(token: string): Promise<LatestTelemetry[]> {
   return request<LatestTelemetry[]>("/dashboard/channels/latest?limit=60", { token });
 }

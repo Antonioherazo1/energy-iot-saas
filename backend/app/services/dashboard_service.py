@@ -153,6 +153,97 @@ def get_energy_by_period(
     ]
 
 
+def get_billing_monthly_energy(
+    db: Session,
+    user: User,
+    billing_start_day: int = 1,
+    limit: int = 6,
+    organization_id: uuid.UUID | None = None,
+) -> list[dict]:
+    organization_ids = get_accessible_organization_ids(db, user, organization_id)
+    if not organization_ids:
+        return []
+
+    safe_limit = max(1, min(limit, 24))
+    shift_days = billing_start_day - 1
+    shifted_bucket = func.date_trunc(
+        "month",
+        Telemetry.recorded_at - func.make_interval(days=shift_days),
+    ).label("period")
+
+    per_device_period = (
+        select(
+            shifted_bucket,
+            Telemetry.device_id,
+            (func.max(Telemetry.energy_kwh) - func.min(Telemetry.energy_kwh)).label("energy_kwh"),
+        )
+        .join(Device, Device.id == Telemetry.device_id)
+        .where(Device.organization_id.in_(organization_ids), Telemetry.energy_kwh.is_not(None))
+        .group_by(shifted_bucket, Telemetry.device_id)
+        .subquery()
+    )
+
+    rows = db.execute(
+        select(
+            per_device_period.c.period,
+            func.coalesce(func.sum(per_device_period.c.energy_kwh), 0).label("energy_kwh"),
+        )
+        .group_by(per_device_period.c.period)
+        .order_by(desc(per_device_period.c.period))
+        .limit(safe_limit)
+    )
+    return [
+        {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0")}
+        for row in rows
+    ]
+
+
+def get_billing_current_daily(
+    db: Session,
+    user: User,
+    billing_start_day: int = 1,
+    organization_id: uuid.UUID | None = None,
+) -> list[dict]:
+    organization_ids = get_accessible_organization_ids(db, user, organization_id)
+    if not organization_ids:
+        return []
+
+    now = datetime.now(timezone.utc)
+    period_start = now.replace(day=billing_start_day, hour=0, minute=0, second=0, microsecond=0)
+    if period_start > now:
+        period_start = period_start.replace(month=period_start.month - 1)
+
+    bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
+    per_device_day = (
+        select(
+            bucket,
+            Telemetry.device_id,
+            (func.max(Telemetry.energy_kwh) - func.min(Telemetry.energy_kwh)).label("energy_kwh"),
+        )
+        .join(Device, Device.id == Telemetry.device_id)
+        .where(
+            Device.organization_id.in_(organization_ids),
+            Telemetry.energy_kwh.is_not(None),
+            Telemetry.recorded_at >= period_start,
+        )
+        .group_by(bucket, Telemetry.device_id)
+        .subquery()
+    )
+
+    rows = db.execute(
+        select(
+            per_device_day.c.period,
+            func.coalesce(func.sum(per_device_day.c.energy_kwh), 0).label("energy_kwh"),
+        )
+        .group_by(per_device_day.c.period)
+        .order_by(per_device_day.c.period)
+    )
+    return [
+        {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0")}
+        for row in rows
+    ]
+
+
 def get_channel_time_series(
     db: Session,
     user: User,

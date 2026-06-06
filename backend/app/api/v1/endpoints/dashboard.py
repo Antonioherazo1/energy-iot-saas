@@ -14,7 +14,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.schemas.dashboard import DashboardSummaryRead, DeviceStatusRead, EnergyBucketRead, LatestTelemetryRead
-from app.services.dashboard_service import get_accessible_organization_ids, get_channel_day_series, get_device_status, get_energy_by_period, get_latest_telemetry, get_realtime_currents, get_summary
+from app.services.dashboard_service import get_accessible_organization_ids, get_billing_current_daily, get_billing_monthly_energy, get_channel_day_series, get_device_status, get_energy_by_period, get_latest_telemetry, get_realtime_currents, get_summary
 
 router = APIRouter()
 
@@ -101,6 +101,31 @@ def energy_monthly(
     db: Session = Depends(get_db),
 ) -> list[dict]:
     return get_energy_by_period(db=db, user=current_user, organization_id=organization_id, period="month", limit=limit)
+
+
+@router.get("/energy/billing/monthly")
+def energy_billing_monthly(
+    billing_start_day: int = Query(default=1, ge=1, le=28),
+    limit: int = Query(default=6, ge=1, le=24),
+    organization_id: uuid.UUID | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return get_billing_monthly_energy(
+        db=db, user=current_user, billing_start_day=billing_start_day, limit=limit, organization_id=organization_id,
+    )
+
+
+@router.get("/energy/billing/daily")
+def energy_billing_daily(
+    billing_start_day: int = Query(default=1, ge=1, le=28),
+    organization_id: uuid.UUID | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return get_billing_current_daily(
+        db=db, user=current_user, billing_start_day=billing_start_day, organization_id=organization_id,
+    )
 
 
 @router.get("/telemetry/csv")
