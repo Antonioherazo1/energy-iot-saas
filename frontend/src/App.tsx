@@ -1,4 +1,4 @@
-import { Activity, Download, Gauge, LogOut, Plus, PlugZap, RefreshCw, Zap } from "lucide-react";
+import { Activity, Download, Gauge, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
@@ -22,7 +22,7 @@ import {
   getSummary,
   login,
   signup,
-  downloadTelemetryCsv,
+  downloadTelemetryExcel,
   getTelemetryByRange,
   getChannelDaySeries,
   deleteDevice,
@@ -109,6 +109,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [rangeEnd, setRangeEnd] = useState("");
   const [rangeData, setRangeData] = useState<LatestTelemetry[]>([]);
   const [rangeLoading, setRangeLoading] = useState(false);
+  const [showSideMenu, setShowSideMenu] = useState(false);
+  const [sideSection, setSideSection] = useState<string | null>(null);
   const realtimeReloadRef = useRef<number | null>(null);
 
   async function loadDashboard(activeToken = token) {
@@ -780,24 +782,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               Actualizar
             </button>
             <button
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium"
-              onClick={() => {
-                const startUtc = rangeStart ? new Date(rangeStart).toISOString() : undefined;
-                const endUtc = rangeEnd ? new Date(rangeEnd).toISOString() : undefined;
-                downloadTelemetryCsv(token, startUtc, endUtc);
-              }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-line bg-white"
+              onClick={() => setShowSideMenu(true)}
               type="button"
             >
-              <Download size={16} />
-              CSV
-            </button>
-            <button
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium"
-              onClick={logout}
-              type="button"
-            >
-              <LogOut size={16} />
-              Salir
+              <Menu size={18} />
             </button>
           </div>
         </div>
@@ -830,35 +819,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 {lt.device_name}
               </button>
             ))}
-            {selectedDeviceId && (
-              <button
-                className="rounded-md px-4 py-2 text-sm font-medium border border-line bg-white text-ink hover:bg-slate-50"
-                onClick={() => {
-                  setConfigChannels(deviceChannels.length > 0 ? deviceChannels.map(ch => ({ ...ch, voltage: Number(ch.voltage) })) : [1,2,3,4].map(n => ({ id: `new-${n}`, device_id: selectedDeviceId, channel_number: n, name: `Canal ${n}`, voltage: 110, is_active: true } as DeviceChannel)));
-                  setShowChannelConfig(true);
-                }}
-                type="button"
-              >
-                Configurar canales
-              </button>
-            )}
-            {selectedDeviceId && (
-              <button
-                className="rounded-md px-4 py-2 text-sm font-medium border border-red-200 bg-white text-red-600 hover:bg-red-50"
-                onClick={async () => {
-                  if (!window.confirm("¿Eliminar este dispositivo? Se borrarán todos sus datos.")) return;
-                  try {
-                    await deleteDevice(token, selectedDeviceId);
-                    await loadDashboard(token);
-                  } catch {
-                    alert("Error al eliminar el dispositivo");
-                  }
-                }}
-                type="button"
-              >
-                Eliminar
-              </button>
-            )}
           </div>
         </div>
 
@@ -868,14 +828,17 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const lt = latest.find((l) => l.device_id === selectedDeviceId);
               const currentVal = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
               const powerVal = currentVal * ch.voltage;
-              const energyVal = lt ? numeric(lt[`ch${ch.channel_number}_energy_kwh` as keyof LatestTelemetry] as string | null) : 0;
               return (
-                <Panel key={ch.id} title={`${ch.name}`}>
-                  <div className="space-y-1 text-sm">
-                    <p className="text-xs text-slate-500">{ch.voltage} V</p>
-                    <p><span className="font-semibold">{currentVal.toFixed(2)}</span> A</p>
-                    <p><span className="font-semibold">{powerVal.toFixed(1)}</span> W</p>
-                    <p className="text-xs text-slate-500">{energyVal.toFixed(6)} kWh</p>
+                <Panel key={ch.id} title={`${ch.name} · ${ch.voltage}V`}>
+                  <div className="flex items-center gap-4">
+                    <div className="text-center">
+                      <p className="text-xs text-slate-400">A</p>
+                      <p className="text-3xl font-bold text-ink">{currentVal.toFixed(1)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-slate-400">W</p>
+                      <p className="text-3xl font-bold text-brand">{powerVal.toFixed(0)}</p>
+                    </div>
                   </div>
                 </Panel>
               );
@@ -972,6 +935,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
           </Panel>
           <Panel title="Consumo del período">
+            <div className="mb-3">
+              <p className="text-3xl font-semibold text-brand">{billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0).toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+            </div>
             {(() => {
               const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
               const days = billingDaily.map((d) => {
@@ -988,7 +954,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const todayStr = now.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               return (
                 <div className="space-y-2 text-sm">
-                  <p className="text-3xl font-semibold text-brand">{periodTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
                   <p className="text-xs text-slate-400">{periodStartStr} → {todayStr} · ~{avgDaily.toFixed(1)} kWh/día</p>
                   {billingDaily.length > 0 && (
                     <Chart option={{
@@ -1002,6 +967,20 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 </div>
               );
             })()}
+          </Panel>
+          <Panel title="Comparativo mensual">
+            <div className="mb-3">
+              <p className="text-3xl font-semibold text-accent">{billingMonthly.reduce((s, b) => s + numeric(b.energy_kwh), 0).toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+            </div>
+            {billingMonthly.length > 0 && (
+              <Chart option={{
+                grid: { left: 52, right: 8, top: 8, bottom: 28 },
+                xAxis: { type: "category", data: billingMonthly.map((d) => { const p = d.period.split("-"); return p.length >= 2 ? `${p[1]}/${p[0]}` : d.period; }), axisLabel: { rotate: 90, fontSize: 9, color: "#526071" } },
+                yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                series: [{ type: "bar", data: billingMonthly.map((d) => numeric(d.energy_kwh)), itemStyle: { color: "#2563eb" } }],
+                tooltip: { trigger: "axis" },
+              }} />
+            )}
           </Panel>
           <Panel title="Comparativo mensual">
             {(() => {
@@ -1057,30 +1036,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
 
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.4fr]">
           <Panel title="Estado de dispositivos">
-            <form className="mb-4 grid gap-3 rounded-md border border-line bg-slate-50 p-3 md:grid-cols-[1fr_1fr_auto]" onSubmit={handleCreateDevice}>
-              <input
-                className="h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                onChange={(event) => setCreateDeviceName(event.target.value)}
-                placeholder="Nombre del dispositivo"
-                required
-                value={createDeviceName}
-              />
-              <input
-                className="h-10 rounded-md border border-line px-3 font-mono text-sm outline-none focus:border-brand"
-                onChange={(event) => setCreateDeviceCode(event.target.value)}
-                placeholder="codigo-mqtt"
-                required
-                value={createDeviceCode}
-              />
-              <button
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-3 text-sm font-medium text-white disabled:opacity-60"
-                disabled={creatingDevice}
-                type="submit"
-              >
-                <Plus size={16} />
-                Crear
-              </button>
-            </form>
             {newDeviceKey ? (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <p className="font-semibold">Clave MQTT creada para {newDeviceCode}</p>
@@ -1117,7 +1072,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
 
           <Panel title="Telemetria por rango">
-            <div className="mb-4 flex flex-wrap items-end gap-2 rounded-md border border-line bg-slate-50 p-3">
+            <div className="flex flex-wrap items-end gap-2 rounded-md border border-line bg-slate-50 p-3">
               <label className="flex-1 min-w-[180px]">
                 <span className="mb-1 block text-xs font-medium text-slate-600">Desde</span>
                 <input
@@ -1137,99 +1092,55 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 />
               </label>
               <button
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-white disabled:opacity-60"
-                disabled={rangeLoading}
-                onClick={loadRange}
-                type="button"
-              >
-                <RefreshCw size={16} />
-                Consultar
-              </button>
-              <button
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium"
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-white"
                 onClick={() => {
                   const startUtc = rangeStart ? new Date(rangeStart).toISOString() : undefined;
                   const endUtc = rangeEnd ? new Date(rangeEnd).toISOString() : undefined;
-                  downloadTelemetryCsv(token, startUtc, endUtc);
+                  downloadTelemetryExcel(token, startUtc, endUtc);
                 }}
                 type="button"
               >
                 <Download size={16} />
-                CSV
+                Descargar Excel
               </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
-                <thead className="border-b border-line text-slate-500">
-                  <tr>
-                    <th className="py-3 font-medium">Dispositivo</th>
-                    <th className="py-3 font-medium">CH1 (A)</th>
-                    <th className="py-3 font-medium">CH2 (A)</th>
-                    <th className="py-3 font-medium">CH3 (A)</th>
-                    <th className="py-3 font-medium">CH4 (A)</th>
-                    <th className="py-3 font-medium">Potencia</th>
-                    <th className="py-3 font-medium">kWh</th>
-                    <th className="py-3 font-medium">Fecha</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rangeData.length === 0 ? (
-                    <tr><td className="py-6 text-center text-slate-400" colSpan={8}>Selecciona un rango y presiona Consultar</td></tr>
-                  ) : rangeData.map((item, i) => (
-                    <tr className="border-b border-slate-100" key={`${item.device_id}-${i}`}>
-                      <td className="py-3 font-medium">{item.device_name}</td>
-                      <td className="py-3">{formatNumber(item.ch1, " A")}</td>
-                      <td className="py-3">{formatNumber(item.ch2, " A")}</td>
-                      <td className="py-3">{formatNumber(item.ch3, " A")}</td>
-                      <td className="py-3">{formatNumber(item.ch4, " A")}</td>
-                      <td className="py-3">{formatNumber(item.power, " W")}</td>
-                      <td className="py-3">{formatNumber(item.energy_kwh, " kWh")}</td>
-                      <td className="py-3 text-slate-600">{formatDate(item.recorded_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </Panel>
         </div>
       </section>
 
-      {showChannelConfig ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowChannelConfig(false)}>
+      {/* Side menu */}
+      {showSideMenu && (
+        <div className="fixed inset-0 z-50" onClick={() => setShowSideMenu(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <aside className="absolute right-0 top-0 h-full w-72 bg-white shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <h2 className="text-base font-semibold">Menu</h2>
+              <button className="text-sm text-slate-400 hover:text-ink" onClick={() => setShowSideMenu(false)} type="button">✕</button>
+            </div>
+            <div className="space-y-1 p-3">
+              <SideMenuItem icon={<Settings size={18} />} label="Configurar canales" onClick={() => { setSideSection("channels"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<Plus size={18} />} label="Crear dispositivo" onClick={() => { setSideSection("create-device"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<Zap size={18} />} label="Corte de dia" onClick={() => { setSideSection("billing-day"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<Download size={18} />} label="Descargar Excel" onClick={() => { setSideSection("download"); setShowSideMenu(false); }} />
+              {selectedDeviceId && <SideMenuItem icon={<Trash2 size={18} />} label="Eliminar dispositivo" onClick={() => { setSideSection("delete"); setShowSideMenu(false); }} />}
+              <SideMenuItem icon={<LogOut size={18} />} label="Salir" onClick={() => { setSideSection("logout"); setShowSideMenu(false); }} />
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* Overlay: Configurar canales */}
+      {sideSection === "channels" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
           <section className="mx-4 w-full max-w-lg rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Configurar canales</h2>
             <div className="space-y-3">
               {configChannels.map((ch, i) => (
                 <div className="flex items-center gap-3" key={ch.channel_number}>
-                  <input
-                    type="checkbox"
-                    className="h-5 w-5 accent-brand"
-                    checked={ch.is_active}
-                    onChange={() => {
-                      const next = [...configChannels];
-                      next[i] = { ...next[i], is_active: !next[i].is_active };
-                      setConfigChannels(next);
-                    }}
-                  />
+                  <input type="checkbox" className="h-5 w-5 accent-brand" checked={ch.is_active} onChange={() => { const next = [...configChannels]; next[i] = { ...next[i], is_active: !next[i].is_active }; setConfigChannels(next); }} />
                   <span className="w-20 text-sm text-slate-500">Canal {ch.channel_number}</span>
-                  <input
-                    className="flex-1 h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                    value={ch.name}
-                    onChange={(e) => {
-                      const next = [...configChannels];
-                      next[i] = { ...next[i], name: e.target.value };
-                      setConfigChannels(next);
-                    }}
-                  />
-                  <select
-                    className="h-10 w-24 rounded-md border border-line px-2 text-sm outline-none focus:border-brand"
-                    value={ch.voltage}
-                    onChange={(e) => {
-                      const next = [...configChannels];
-                      next[i] = { ...next[i], voltage: Number(e.target.value) };
-                      setConfigChannels(next);
-                    }}
-                  >
+                  <input className="flex-1 h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand" value={ch.name} onChange={(e) => { const next = [...configChannels]; next[i] = { ...next[i], name: e.target.value }; setConfigChannels(next); }} />
+                  <select className="h-10 w-24 rounded-md border border-line px-2 text-sm outline-none focus:border-brand" value={ch.voltage} onChange={(e) => { const next = [...configChannels]; next[i] = { ...next[i], voltage: Number(e.target.value) }; setConfigChannels(next); }}>
                     <option value={110}>110 V</option>
                     <option value={220}>220 V</option>
                   </select>
@@ -1238,46 +1149,100 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
             {error ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
             <div className="mt-4 flex gap-3">
-              <button
-                className="flex-1 h-11 rounded-md border border-line bg-white text-sm font-medium"
-                onClick={() => setShowChannelConfig(false)}
-                type="button"
-              >
-                Cancelar
-              </button>
-              <button
-                className="flex-1 h-11 rounded-md bg-brand text-sm font-medium text-white disabled:opacity-60"
-                disabled={savingChannels}
-                onClick={async () => {
-                  if (!token || !selectedDeviceId) return;
-                  setSavingChannels(true);
-                  setError("");
-                  try {
-                    await Promise.all(
-                      configChannels.map((ch) =>
-                        updateChannel(token, selectedDeviceId, ch.channel_number, {
-                          name: ch.name,
-                          voltage: ch.voltage,
-                          is_active: ch.is_active,
-                        })
-                      )
-                    );
-                    setShowChannelConfig(false);
-                    await loadDeviceChannels(selectedDeviceId);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : "Error al guardar");
-                  } finally {
-                    setSavingChannels(false);
-                  }
-                }}
-                type="button"
-              >
-                {savingChannels ? "Guardando..." : "Guardar"}
-              </button>
+              <button className="flex-1 h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cancelar</button>
+              <button className="flex-1 h-11 rounded-md bg-brand text-sm font-medium text-white disabled:opacity-60" disabled={savingChannels} onClick={async () => {
+                if (!token || !selectedDeviceId) return;
+                setSavingChannels(true); setError("");
+                try {
+                  await Promise.all(configChannels.map((ch) => updateChannel(token, selectedDeviceId, ch.channel_number, { name: ch.name, voltage: ch.voltage, is_active: ch.is_active })));
+                  setSideSection(null);
+                  await loadDeviceChannels(selectedDeviceId);
+                } catch (err) { setError(err instanceof Error ? err.message : "Error al guardar"); }
+                finally { setSavingChannels(false); }
+              }} type="button">{savingChannels ? "Guardando..." : "Guardar"}</button>
             </div>
           </section>
         </div>
-      ) : null}
+      )}
+
+      {/* Overlay: Crear dispositivo */}
+      {sideSection === "create-device" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-md rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Crear dispositivo</h2>
+            <form className="space-y-3" onSubmit={handleCreateDevice}>
+              <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" onChange={(e) => setCreateDeviceName(e.target.value)} placeholder="Nombre del dispositivo" required value={createDeviceName} />
+              <input className="h-10 w-full rounded-md border border-line px-3 font-mono text-sm outline-none focus:border-brand" onChange={(e) => setCreateDeviceCode(e.target.value)} placeholder="codigo-mqtt" required value={createDeviceCode} />
+              <button className="w-full h-11 rounded-md bg-brand text-sm font-medium text-white disabled:opacity-60" disabled={creatingDevice} type="submit">{creatingDevice ? "Creando..." : "Crear"}</button>
+            </form>
+            <button className="mt-3 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cancelar</button>
+          </section>
+        </div>
+      )}
+
+      {/* Overlay: Corte de dia */}
+      {sideSection === "billing-day" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-xs rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Corte de dia de facturacion</h2>
+            <p className="mb-3 text-sm text-slate-500">Dia del mes en que inicia tu periodo de facturacion</p>
+            <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={1} max={28} value={billingStartDay} onChange={(e) => { const v = Number(e.target.value); if (v >= 1 && v <= 28) { setBillingStartDay(v); localStorage.setItem("billing_start_day", String(v)); } }} />
+            <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
+          </section>
+        </div>
+      )}
+
+      {/* Overlay: Descargar Excel */}
+      {sideSection === "download" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Descargar Excel</h2>
+            <div className="space-y-3">
+              <label><span className="mb-1 block text-xs font-medium text-slate-600">Desde</span>
+                <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="datetime-local" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
+              </label>
+              <label><span className="mb-1 block text-xs font-medium text-slate-600">Hasta</span>
+                <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="datetime-local" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
+              </label>
+              <button className="w-full h-11 rounded-md bg-brand text-sm font-medium text-white" onClick={() => { const s = rangeStart ? new Date(rangeStart).toISOString() : undefined; const e = rangeEnd ? new Date(rangeEnd).toISOString() : undefined; downloadTelemetryExcel(token, s, e); setSideSection(null); }} type="button">
+                <Download size={16} className="inline mr-1" /> Descargar
+              </button>
+            </div>
+            <button className="mt-3 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
+          </section>
+        </div>
+      )}
+
+      {/* Overlay: Eliminar dispositivo */}
+      {sideSection === "delete" && selectedDeviceId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold text-red-600">Eliminar dispositivo</h2>
+            <p className="mb-4 text-sm text-slate-500">¿Esta seguro de eliminar este dispositivo? Se borraran todos sus datos.</p>
+            <div className="flex gap-3">
+              <button className="flex-1 h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cancelar</button>
+              <button className="flex-1 h-11 rounded-md bg-red-600 text-sm font-medium text-white" onClick={async () => {
+                try { await deleteDevice(token, selectedDeviceId); await loadDashboard(token); setSideSection(null); }
+                catch { alert("Error al eliminar el dispositivo"); }
+              }} type="button">Eliminar</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Overlay: Salir */}
+      {sideSection === "logout" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-xs rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Salir</h2>
+            <p className="mb-4 text-sm text-slate-500">¿Cerrar sesion?</p>
+            <div className="flex gap-3">
+              <button className="flex-1 h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cancelar</button>
+              <button className="flex-1 h-11 rounded-md bg-brand text-sm font-medium text-white" onClick={() => { setSideSection(null); logout(); }} type="button">Salir</button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
@@ -1309,5 +1274,18 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="mb-3 text-base font-semibold">{title}</h2>
       {children}
     </section>
+  );
+}
+
+function SideMenuItem({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100"
+      onClick={onClick}
+      type="button"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

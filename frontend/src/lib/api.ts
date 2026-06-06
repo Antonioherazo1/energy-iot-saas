@@ -167,7 +167,7 @@ export function getChannelTimeSeries(token: string): Promise<LatestTelemetry[]> 
   return request<LatestTelemetry[]>("/dashboard/channels/latest?limit=60", { token });
 }
 
-export function downloadTelemetryCsv(token: string, start?: string, end?: string, limit = 500): void {
+export function downloadTelemetryExcel(token: string, start?: string, end?: string, limit = 500): void {
   const params = new URLSearchParams({ limit: String(limit) });
   if (start) params.set("start", start);
   if (end) params.set("end", end);
@@ -180,13 +180,13 @@ export function downloadTelemetryCsv(token: string, start?: string, end?: string
     .then((blob) => {
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "telemetria.csv";
+      a.download = "telemetria.xlsx";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(a.href);
     })
-    .catch((err) => console.error("CSV download failed:", err));
+    .catch((err) => console.error("Excel download failed:", err));
 }
 
 export function getTelemetryByRange(token: string, start: string, end: string, limit = 200): Promise<LatestTelemetry[]> {

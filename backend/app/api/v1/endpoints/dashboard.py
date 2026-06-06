@@ -5,6 +5,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Font
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
@@ -151,7 +153,7 @@ def telemetry_csv(
 ) -> StreamingResponse:
     organization_ids = get_accessible_organization_ids(db, current_user, organization_id)
     if not organization_ids:
-        return _empty_csv()
+        return _empty_excel()
 
     filters = [Device.organization_id.in_(organization_ids)]
     if start:
@@ -168,12 +170,16 @@ def telemetry_csv(
     )
     rows = db.execute(query).all()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(CSV_HEADERS)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Telemetria"
+    bold = Font(bold=True)
+    headers = ["Dispositivo", "Codigo", "Fecha", "Voltaje (V)", "Corriente (A)", "Potencia (W)", "Energia (kWh)", "Frecuencia (Hz)", "FP", "CH1 (A)", "CH2 (A)", "CH3 (A)", "CH4 (A)"]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = bold
     for telemetry, device in rows:
-        writer.writerow([
-            telemetry.device_id,
+        ws.append([
             device.name,
             device.code,
             telemetry.recorded_at.isoformat() if telemetry.recorded_at else "",
@@ -189,31 +195,32 @@ def telemetry_csv(
             telemetry.ch4,
         ])
 
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=telemetria.csv"},
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=telemetria.xlsx"},
     )
 
 
-CSV_HEADERS = [
-    "device_id", "device_name", "device_code",
-    "recorded_at", "voltage", "current", "power", "energy_kwh",
-    "frequency", "power_factor",
-    "ch1_a", "ch2_a", "ch3_a", "ch4_a",
-]
-
-
-def _empty_csv() -> StreamingResponse:
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(CSV_HEADERS)
+def _empty_excel() -> StreamingResponse:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Telemetria"
+    bold = Font(bold=True)
+    headers = ["Dispositivo", "Codigo", "Fecha", "Voltaje (V)", "Corriente (A)", "Potencia (W)", "Energia (kWh)", "Frecuencia (Hz)", "FP", "CH1 (A)", "CH2 (A)", "CH3 (A)", "CH4 (A)"]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = bold
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=telemetria.csv"},
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=telemetria.xlsx"},
     )
 
 
