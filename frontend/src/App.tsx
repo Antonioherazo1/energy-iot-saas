@@ -327,11 +327,26 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     }
   }
 
+  async function pollLatestTelemetry() {
+    if (!token) return;
+    try {
+      const data = await getLatestTelemetry(token);
+      setLatest(data);
+      setLastUpdatedAt(new Date());
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     if (!selectedDeviceId) return;
     setCurrentBuffer([]);
     void loadRealtimeBuffer();
-    const interval = window.setInterval(loadRealtimeBuffer, 5000);
+    void pollLatestTelemetry();
+    const interval = window.setInterval(() => {
+      void loadRealtimeBuffer();
+      void pollLatestTelemetry();
+    }, 5000);
     return () => window.clearInterval(interval);
   }, [token, selectedDeviceId, realtimeMinutes]);
 
@@ -806,14 +821,14 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         </div>
 
         <div className="mt-6">
-          <div className="flex flex-wrap gap-2 border-b border-line pb-2">
+          <div className="flex flex-wrap items-center gap-0 border-b border-line">
             {latest.map((lt) => (
               <button
                 key={lt.device_id}
-                className={`rounded-md px-4 py-2 text-sm font-medium ${
+                className={`-mb-px px-5 py-2.5 text-sm font-medium transition-colors ${
                   selectedDeviceId === lt.device_id
-                    ? "bg-brand text-white"
-                    : "bg-white text-ink border border-line hover:bg-slate-50"
+                    ? "border-b-2 border-brand text-brand"
+                    : "text-slate-500 hover:text-ink"
                 }`}
                 onClick={() => setSelectedDeviceId(lt.device_id)}
                 type="button"
@@ -821,30 +836,50 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 {lt.device_name}
               </button>
             ))}
+            <span className="ml-auto flex items-center gap-2 px-2 text-xs text-slate-400">
+              {latest.length} disp.
+              <button
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-slate-500 hover:bg-slate-50"
+                onClick={() => setSideSection("create-device")}
+                type="button"
+                title="Agregar dispositivo"
+              >
+                <Plus size={14} />
+              </button>
+            </span>
           </div>
         </div>
 
         {selectedDeviceId && deviceChannels.length > 0 ? (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
-              const lt = latest.find((l) => l.device_id === selectedDeviceId);
-              const currentVal = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
-              const powerVal = currentVal * ch.voltage;
-              return (
-                <Panel key={ch.id} title={`${ch.name} · ${ch.voltage}V`}>
-                  <div className="flex items-center gap-4">
+          <div className="mt-4 rounded-lg border border-line bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap gap-3">
+              {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
+                const lt = latest.find((l) => l.device_id === selectedDeviceId);
+                const currentVal = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
+                const powerVal = currentVal * ch.voltage;
+                const energyVal = lt ? numeric(lt[`ch${ch.channel_number}_energy_kwh` as keyof LatestTelemetry] as string | null) : 0;
+                return (
+                  <div className="flex min-w-[200px] flex-1 items-center gap-4 rounded-md border border-line p-3" key={ch.id}>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-500">{ch.name}</p>
+                      <p className="text-xs text-slate-400">{ch.voltage}V</p>
+                    </div>
                     <div className="text-center">
                       <p className="text-xs text-slate-400">A</p>
-                      <p className="text-3xl font-bold text-ink">{currentVal.toFixed(1)}</p>
+                      <p className="text-xl font-bold text-ink">{currentVal.toFixed(2)}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-slate-400">W</p>
-                      <p className="text-3xl font-bold text-brand">{powerVal.toFixed(0)}</p>
+                      <p className="text-xl font-bold text-brand">{powerVal.toFixed(1)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-slate-400">kWh</p>
+                      <p className="text-xl font-bold text-accent">{energyVal.toFixed(2)}</p>
                     </div>
                   </div>
-                </Panel>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         ) : null}
 
@@ -1036,7 +1071,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   <tr>
                     <th className="py-3 font-medium">Dispositivo</th>
                     <th className="py-3 font-medium">Codigo</th>
-                    <th className="py-3 font-medium">Estado</th>
                     <th className="py-3 font-medium">Ultimo dato</th>
                   </tr>
                 </thead>
@@ -1045,9 +1079,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     <tr className="border-b border-slate-100" key={device.device_id}>
                       <td className="py-3 font-medium">{device.name}</td>
                       <td className="py-3 font-mono text-xs">{device.code}</td>
-                      <td className="py-3">
-                        <span className={device.is_online ? "status-ok" : "status-off"}>{device.is_online ? "Online" : "Offline"}</span>
-                      </td>
                       <td className="py-3 text-slate-600">{formatDate(device.last_seen_at)}</td>
                     </tr>
                   ))}
