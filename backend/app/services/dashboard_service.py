@@ -224,6 +224,96 @@ def get_billing_monthly_energy(
     ]
 
 
+def get_billing_daily_per_channel(
+    db: Session,
+    user: User,
+    device_id: uuid.UUID,
+    organization_id: uuid.UUID | None = None,
+) -> list[dict]:
+    organization_ids = get_accessible_organization_ids(db, user, organization_id)
+    if not organization_ids:
+        return []
+
+    device = db.get(Device, device_id)
+    if device is None or device.organization_id not in organization_ids:
+        return []
+
+    now = datetime.now(timezone.utc)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    c1 = aliased(DeviceChannel, name="c1")
+    c2 = aliased(DeviceChannel, name="c2")
+    c3 = aliased(DeviceChannel, name="c3")
+    c4 = aliased(DeviceChannel, name="c4")
+
+    ch_names = {
+        1: func.coalesce(c1.name, f"Canal 1"),
+        2: func.coalesce(c2.name, f"Canal 2"),
+        3: func.coalesce(c3.name, f"Canal 3"),
+        4: func.coalesce(c4.name, f"Canal 4"),
+    }
+
+    ch_energy = {}
+    for ch_num in range(1, 5):
+        alias = [c1, c2, c3, c4][ch_num - 1]
+        ch_col = getattr(Telemetry, f"ch{ch_num}")
+
+        ch_power = case(
+            (alias.id.is_not(None), func.coalesce(ch_col, 0) * alias.voltage),
+            else_=0,
+        )
+
+        prev_ts = func.lag(Telemetry.recorded_at).over(
+            partition_by=Telemetry.device_id,
+            order_by=Telemetry.recorded_at,
+        )
+        delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+        energy_delta = ch_power * func.cast(delta_expr, Numeric(20, 10))
+
+        bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
+
+        cte = (
+            select(
+                bucket,
+                ch_names[ch_num].label("channel_name"),
+                func.literal(ch_num).label("channel_number"),
+                case(
+                    (and_(prev_ts.is_not(None), energy_delta > 0), energy_delta),
+                    else_=0,
+                ).label("energy_delta"),
+            )
+            .join(Device, Device.id == Telemetry.device_id)
+            .outerjoin(alias, and_(alias.device_id == Telemetry.device_id, alias.channel_number == ch_num, alias.is_active == True))
+            .where(
+                Telemetry.device_id == device.id,
+                Telemetry.recorded_at >= day_start,
+            )
+            .cte(f"energy_cte_ch{ch_num}")
+        )
+
+        rows = db.execute(
+            select(
+                cte.c.period,
+                cte.c.channel_number,
+                cte.c.channel_name,
+                func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
+            )
+            .where(cte.c.energy_delta > 0)
+            .group_by(cte.c.period, cte.c.channel_number, cte.c.channel_name)
+            .order_by(cte.c.channel_number)
+        )
+        ch_energy[ch_num] = [
+            {"period": row.period.date(), "channel_number": row.channel_number, "channel_name": row.channel_name, "energy_kwh": row.energy_kwh or Decimal("0")}
+            for row in rows
+        ]
+
+    # merge all channels into one flat list
+    result = []
+    for ch_num in range(1, 5):
+        result.extend(ch_energy[ch_num])
+    return result
+
+
 def get_billing_current_daily(
     db: Session,
     user: User,

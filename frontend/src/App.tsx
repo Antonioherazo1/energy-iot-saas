@@ -6,6 +6,7 @@ import type { EChartsOption } from "echarts";
 import Chart from "./components/Chart";
 import {
   createDevice,
+  getBillingDailyChannels,
   getBillingDailyEnergy,
   getBillingMonthlyEnergy,
   getChannelTimeSeries,
@@ -98,6 +99,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   });
   const [billingDaily, setBillingDaily] = useState<EnergyBucket[]>([]);
   const [billingMonthly, setBillingMonthly] = useState<EnergyBucket[]>([]);
+  const [channelDailyEnergy, setChannelDailyEnergy] = useState<{ channel_number: number; channel_name: string; energy_kwh: string }[]>([]);
   const [channelHourFrom, setChannelHourFrom] = useState(0);
   const [channelHourTo, setChannelHourTo] = useState(() => Math.max(1, Math.min(24, new Date().getHours() + 1)));
   const [showChannelConfig, setShowChannelConfig] = useState(false);
@@ -394,6 +396,21 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     if (onboardingStep < 3) return;
     void loadBillingData();
   }, [token, user, onboardingStep, billingStartDay]);
+
+  async function loadChannelDailyEnergy() {
+    if (!token || !selectedDeviceId) return;
+    try {
+      const data = await getBillingDailyChannels(token, selectedDeviceId);
+      setChannelDailyEnergy(data);
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    if (!token || !selectedDeviceId) return;
+    void loadChannelDailyEnergy();
+  }, [token, selectedDeviceId]);
 
   const channelsOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
@@ -936,16 +953,16 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Panel title="Energia por canal (kWh)">
+          <Panel title="Energia por canal (kWh) - Hoy">
             <div className="space-y-2 text-sm">
-              {selectedDeviceId && deviceChannels.length > 0 ? (
+              {deviceChannels.filter((ch) => ch.is_active).length > 0 ? (
                 deviceChannels.filter((ch) => ch.is_active).map((ch) => {
-                  const lt = latest.find((l) => l.device_id === selectedDeviceId);
-                  const chEnergy = lt ? numeric(lt[`ch${ch.channel_number}_energy_kwh` as keyof LatestTelemetry] as string | null) : 0;
+                  const chData = channelDailyEnergy.find((d) => d.channel_number === ch.channel_number);
+                  const energy = chData ? numeric(chData.energy_kwh) : 0;
                   return (
-                    <div className="flex justify-between border-b border-slate-100 py-1" key={ch.id}>
+                    <div className="flex justify-between border-b border-slate-100 py-1" key={ch.channel_number}>
                       <span className="text-slate-600">{ch.name}</span>
-                      <span className="font-semibold">{chEnergy.toFixed(6)} kWh</span>
+                      <span className="font-semibold">{energy.toFixed(2)} kWh</span>
                     </div>
                   );
                 })

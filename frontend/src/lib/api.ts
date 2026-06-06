@@ -159,6 +159,10 @@ export function getBillingDailyEnergy(token: string, billingStartDay: number): P
   return request<EnergyBucket[]>(`/dashboard/energy/billing/daily?billing_start_day=${billingStartDay}`, { token });
 }
 
+export function getBillingDailyChannels(token: string, deviceId: string): Promise<{ period: string; channel_number: number; channel_name: string; energy_kwh: string }[]> {
+  return request(`/dashboard/energy/billing/daily/channels?device_id=${deviceId}`, { token });
+}
+
 export function getChannelTimeSeries(token: string): Promise<LatestTelemetry[]> {
   return request<LatestTelemetry[]>("/dashboard/channels/latest?limit=60", { token });
 }
