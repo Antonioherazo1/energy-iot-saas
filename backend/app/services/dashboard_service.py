@@ -168,7 +168,7 @@ def get_billing_monthly_energy(
     shift_days = billing_start_day - 1
     shifted_bucket = func.date_trunc(
         "month",
-        Telemetry.recorded_at - func.make_interval(days=shift_days),
+        Telemetry.recorded_at - func.make_interval(0, 0, 0, shift_days),
     ).label("period")
 
     per_device_period = (
@@ -211,7 +211,7 @@ def get_billing_current_daily(
     now = datetime.now(timezone.utc)
     period_start = now.replace(day=billing_start_day, hour=0, minute=0, second=0, microsecond=0)
     if period_start > now:
-        period_start = period_start.replace(month=period_start.month - 1)
+        period_start = (period_start.replace(day=1) - timedelta(days=1)).replace(day=billing_start_day, hour=0, minute=0, second=0, microsecond=0)
 
     bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
     per_device_day = (
