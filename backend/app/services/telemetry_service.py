@@ -99,12 +99,15 @@ def create_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> Tel
     ch_energies: list[Decimal | None] = [None, None, None, None]
     total_power = Decimal("0")
     global_voltage = Decimal(str(settings.assumed_voltage))
+    has_channels = len(channels) > 0
 
     for idx in range(4):
         ch_current = ch_currents[idx]
         if ch_current is None:
             continue
         ch_config = next((c for c in channels if c.channel_number == idx + 1), None)
+        if has_channels and ch_config is None:
+            continue
         ch_voltage = global_voltage if ch_config is None else ch_config.voltage
         ch_power_val = ch_current * ch_voltage
         ch_powers[idx] = ch_power_val

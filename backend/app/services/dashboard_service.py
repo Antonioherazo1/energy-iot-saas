@@ -172,12 +172,11 @@ def get_billing_monthly_energy(
     c3 = aliased(DeviceChannel, name="c3")
     c4 = aliased(DeviceChannel, name="c4")
 
-    dynamic_power = (
-        func.coalesce(Telemetry.ch1, 0) * func.coalesce(c1.voltage, 110)
-        + func.coalesce(Telemetry.ch2, 0) * func.coalesce(c2.voltage, 110)
-        + func.coalesce(Telemetry.ch3, 0) * func.coalesce(c3.voltage, 110)
-        + func.coalesce(Telemetry.ch4, 0) * func.coalesce(c4.voltage, 110)
-    )
+    ch_power_1 = case((c1.id.is_not(None), func.coalesce(Telemetry.ch1, 0) * c1.voltage), else_=0)
+    ch_power_2 = case((c2.id.is_not(None), func.coalesce(Telemetry.ch2, 0) * c2.voltage), else_=0)
+    ch_power_3 = case((c3.id.is_not(None), func.coalesce(Telemetry.ch3, 0) * c3.voltage), else_=0)
+    ch_power_4 = case((c4.id.is_not(None), func.coalesce(Telemetry.ch4, 0) * c4.voltage), else_=0)
+    dynamic_power = ch_power_1 + ch_power_2 + ch_power_3 + ch_power_4
 
     prev_ts = func.lag(Telemetry.recorded_at).over(
         partition_by=Telemetry.device_id,
@@ -245,12 +244,11 @@ def get_billing_current_daily(
     c3 = aliased(DeviceChannel, name="c3")
     c4 = aliased(DeviceChannel, name="c4")
 
-    dynamic_power = (
-        func.coalesce(Telemetry.ch1, 0) * func.coalesce(c1.voltage, 110)
-        + func.coalesce(Telemetry.ch2, 0) * func.coalesce(c2.voltage, 110)
-        + func.coalesce(Telemetry.ch3, 0) * func.coalesce(c3.voltage, 110)
-        + func.coalesce(Telemetry.ch4, 0) * func.coalesce(c4.voltage, 110)
-    )
+    ch_power_1 = case((c1.id.is_not(None), func.coalesce(Telemetry.ch1, 0) * c1.voltage), else_=0)
+    ch_power_2 = case((c2.id.is_not(None), func.coalesce(Telemetry.ch2, 0) * c2.voltage), else_=0)
+    ch_power_3 = case((c3.id.is_not(None), func.coalesce(Telemetry.ch3, 0) * c3.voltage), else_=0)
+    ch_power_4 = case((c4.id.is_not(None), func.coalesce(Telemetry.ch4, 0) * c4.voltage), else_=0)
+    dynamic_power = ch_power_1 + ch_power_2 + ch_power_3 + ch_power_4
 
     prev_ts = func.lag(Telemetry.recorded_at).over(
         partition_by=Telemetry.device_id,
