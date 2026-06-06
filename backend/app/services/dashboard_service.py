@@ -238,6 +238,10 @@ def get_billing_daily_per_channel(
     if device is None or device.organization_id not in organization_ids:
         return []
 
+    channels_config = {ch.channel_number: ch for ch in db.scalars(
+        select(DeviceChannel).where(DeviceChannel.device_id == device.id, DeviceChannel.is_active.is_(True))
+    )}
+
     now = datetime.now(timezone.utc)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -246,71 +250,61 @@ def get_billing_daily_per_channel(
     c3 = aliased(DeviceChannel, name="c3")
     c4 = aliased(DeviceChannel, name="c4")
 
-    ch_names = {
-        1: func.coalesce(c1.name, f"Canal 1"),
-        2: func.coalesce(c2.name, f"Canal 2"),
-        3: func.coalesce(c3.name, f"Canal 3"),
-        4: func.coalesce(c4.name, f"Canal 4"),
-    }
+    ch_power_1 = case((c1.id.is_not(None), func.coalesce(Telemetry.ch1, 0) * c1.voltage), else_=0)
+    ch_power_2 = case((c2.id.is_not(None), func.coalesce(Telemetry.ch2, 0) * c2.voltage), else_=0)
+    ch_power_3 = case((c3.id.is_not(None), func.coalesce(Telemetry.ch3, 0) * c3.voltage), else_=0)
+    ch_power_4 = case((c4.id.is_not(None), func.coalesce(Telemetry.ch4, 0) * c4.voltage), else_=0)
 
-    ch_energy = {}
-    for ch_num in range(1, 5):
-        alias = [c1, c2, c3, c4][ch_num - 1]
-        ch_col = getattr(Telemetry, f"ch{ch_num}")
+    prev_ts = func.lag(Telemetry.recorded_at).over(
+        partition_by=Telemetry.device_id,
+        order_by=Telemetry.recorded_at,
+    )
+    delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+    delta_numeric = func.cast(delta_expr, Numeric(20, 10))
 
-        ch_power = case(
-            (alias.id.is_not(None), func.coalesce(ch_col, 0) * alias.voltage),
-            else_=0,
+    bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
+
+    cte = (
+        select(
+            bucket,
+            case((and_(prev_ts.is_not(None), ch_power_1 * delta_numeric > 0), ch_power_1 * delta_numeric), else_=0).label("en_ch1"),
+            case((and_(prev_ts.is_not(None), ch_power_2 * delta_numeric > 0), ch_power_2 * delta_numeric), else_=0).label("en_ch2"),
+            case((and_(prev_ts.is_not(None), ch_power_3 * delta_numeric > 0), ch_power_3 * delta_numeric), else_=0).label("en_ch3"),
+            case((and_(prev_ts.is_not(None), ch_power_4 * delta_numeric > 0), ch_power_4 * delta_numeric), else_=0).label("en_ch4"),
         )
-
-        prev_ts = func.lag(Telemetry.recorded_at).over(
-            partition_by=Telemetry.device_id,
-            order_by=Telemetry.recorded_at,
+        .join(Device, Device.id == Telemetry.device_id)
+        .outerjoin(c1, and_(c1.device_id == Telemetry.device_id, c1.channel_number == 1, c1.is_active == True))
+        .outerjoin(c2, and_(c2.device_id == Telemetry.device_id, c2.channel_number == 2, c2.is_active == True))
+        .outerjoin(c3, and_(c3.device_id == Telemetry.device_id, c3.channel_number == 3, c3.is_active == True))
+        .outerjoin(c4, and_(c4.device_id == Telemetry.device_id, c4.channel_number == 4, c4.is_active == True))
+        .where(
+            Telemetry.device_id == device.id,
+            Telemetry.recorded_at >= day_start,
         )
-        delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
-        energy_delta = ch_power * func.cast(delta_expr, Numeric(20, 10))
+        .cte("energy_cte")
+    )
 
-        bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
-
-        cte = (
-            select(
-                bucket,
-                ch_names[ch_num].label("channel_name"),
-                func.literal(ch_num).label("channel_number"),
-                case(
-                    (and_(prev_ts.is_not(None), energy_delta > 0), energy_delta),
-                    else_=0,
-                ).label("energy_delta"),
-            )
-            .join(Device, Device.id == Telemetry.device_id)
-            .outerjoin(alias, and_(alias.device_id == Telemetry.device_id, alias.channel_number == ch_num, alias.is_active == True))
-            .where(
-                Telemetry.device_id == device.id,
-                Telemetry.recorded_at >= day_start,
-            )
-            .cte(f"energy_cte_ch{ch_num}")
+    rows = db.execute(
+        select(
+            func.coalesce(func.sum(cte.c.en_ch1), 0).label("ch1"),
+            func.coalesce(func.sum(cte.c.en_ch2), 0).label("ch2"),
+            func.coalesce(func.sum(cte.c.en_ch3), 0).label("ch3"),
+            func.coalesce(func.sum(cte.c.en_ch4), 0).label("ch4"),
         )
+    ).one()
 
-        rows = db.execute(
-            select(
-                cte.c.period,
-                cte.c.channel_number,
-                cte.c.channel_name,
-                func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
-            )
-            .where(cte.c.energy_delta > 0)
-            .group_by(cte.c.period, cte.c.channel_number, cte.c.channel_name)
-            .order_by(cte.c.channel_number)
-        )
-        ch_energy[ch_num] = [
-            {"period": row.period.date(), "channel_number": row.channel_number, "channel_name": row.channel_name, "energy_kwh": row.energy_kwh or Decimal("0")}
-            for row in rows
-        ]
-
-    # merge all channels into one flat list
     result = []
+    ch_map = {1: "ch1", 2: "ch2", 3: "ch3", 4: "ch4"}
     for ch_num in range(1, 5):
-        result.extend(ch_energy[ch_num])
+        config = channels_config.get(ch_num)
+        if config is None:
+            continue
+        energy = getattr(rows, ch_map[ch_num], Decimal("0"))
+        result.append({
+            "channel_number": ch_num,
+            "channel_name": config.name,
+            "energy_kwh": energy or Decimal("0"),
+        })
     return result
 
 

@@ -99,7 +99,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   });
   const [billingDaily, setBillingDaily] = useState<EnergyBucket[]>([]);
   const [billingMonthly, setBillingMonthly] = useState<EnergyBucket[]>([]);
-  const [channelDailyEnergy, setChannelDailyEnergy] = useState<{ channel_number: number; channel_name: string; energy_kwh: string }[]>([]);
+  const [channelDailyEnergy, setChannelDailyEnergy] = useState<{ channel_number: number; energy_kwh: string }[]>([]);
   const [channelHourFrom, setChannelHourFrom] = useState(0);
   const [channelHourTo, setChannelHourTo] = useState(() => Math.max(1, Math.min(24, new Date().getHours() + 1)));
   const [showChannelConfig, setShowChannelConfig] = useState(false);
