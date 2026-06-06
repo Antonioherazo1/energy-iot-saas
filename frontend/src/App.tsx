@@ -390,7 +390,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   }, [token, user, onboardingStep]);
 
   useEffect(() => {
-    if (!token || !user || onboardingStep > 0) return;
+    if (!token || !user) return;
+    if (onboardingStep < 3) return;
     void loadBillingData();
   }, [token, user, onboardingStep, billingStartDay]);
 
