@@ -102,7 +102,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [channelDailyEnergy, setChannelDailyEnergy] = useState<{ channel_number: number; energy_kwh: string }[]>([]);
   const [channelHourFrom, setChannelHourFrom] = useState(0);
   const [channelHourTo, setChannelHourTo] = useState(() => Math.max(1, Math.min(24, new Date().getHours() + 1)));
-  const [showChannelConfig, setShowChannelConfig] = useState(false);
   const [configChannels, setConfigChannels] = useState<DeviceChannel[]>([]);
   const [savingChannels, setSavingChannels] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
@@ -317,11 +316,14 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
 
   async function loadRealtimeBuffer() {
     if (!token || !selectedDeviceId) return;
+    setBufferLoading(true);
     try {
       const data = await getRealtimeCurrents(token, selectedDeviceId, realtimeMinutes);
       setCurrentBuffer(data);
     } catch {
       // ignore
+    } finally {
+      setBufferLoading(false);
     }
   }
 
@@ -982,7 +984,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               }} />
             )}
           </Panel>
-          <Panel title="Comparativo mensual">
+          <Panel title="Periodo actual">
             {(() => {
               const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
               const now = new Date();
@@ -992,26 +994,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const todayStr = now.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               return (
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-3xl font-semibold text-accent">{periodTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-                      <p className="text-xs text-slate-400">Desde {periodStart} hasta {todayStr}</p>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs">
-                      <span className="text-slate-400">Corte dia</span>
-                      <input
-                        className="h-7 w-12 rounded border border-line px-2 text-center text-xs outline-none focus:border-brand"
-                        type="number" min={1} max={28}
-                        value={billingStartDay}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          if (v >= 1 && v <= 28) {
-                            setBillingStartDay(v);
-                            localStorage.setItem("billing_start_day", String(v));
-                          }
-                        }}
-                      />
-                    </div>
+                  <div>
+                    <p className="text-3xl font-semibold text-accent">{periodTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                    <p className="text-xs text-slate-400">Desde {periodStart} hasta {todayStr}</p>
                   </div>
                   {billingMonthly.length > 0 && (
                     <div className="mt-3">
@@ -1118,7 +1103,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <button className="text-sm text-slate-400 hover:text-ink" onClick={() => setShowSideMenu(false)} type="button">✕</button>
             </div>
             <div className="space-y-1 p-3">
-              <SideMenuItem icon={<Settings size={18} />} label="Configurar canales" onClick={() => { setSideSection("channels"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<Settings size={18} />} label="Configurar canales" onClick={() => { setConfigChannels(deviceChannels.map((dc) => ({ ...dc }))); setSideSection("channels"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Plus size={18} />} label="Crear dispositivo" onClick={() => { setSideSection("create-device"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Zap size={18} />} label="Corte de dia" onClick={() => { setSideSection("billing-day"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Download size={18} />} label="Descargar Excel" onClick={() => { setSideSection("download"); setShowSideMenu(false); }} />
