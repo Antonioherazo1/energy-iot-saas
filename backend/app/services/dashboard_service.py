@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy import Numeric, Select, and_, case, desc, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.models.channel import DeviceChannel
 from app.models.device import Device
@@ -167,12 +167,24 @@ def get_billing_monthly_energy(
     safe_limit = max(1, min(limit, 24))
     shift_days = billing_start_day - 1
 
+    c1 = aliased(DeviceChannel, name="c1")
+    c2 = aliased(DeviceChannel, name="c2")
+    c3 = aliased(DeviceChannel, name="c3")
+    c4 = aliased(DeviceChannel, name="c4")
+
+    dynamic_power = (
+        func.coalesce(Telemetry.ch1, 0) * func.coalesce(c1.voltage, 110)
+        + func.coalesce(Telemetry.ch2, 0) * func.coalesce(c2.voltage, 110)
+        + func.coalesce(Telemetry.ch3, 0) * func.coalesce(c3.voltage, 110)
+        + func.coalesce(Telemetry.ch4, 0) * func.coalesce(c4.voltage, 110)
+    )
+
     prev_ts = func.lag(Telemetry.recorded_at).over(
         partition_by=Telemetry.device_id,
         order_by=Telemetry.recorded_at,
     )
     delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
-    energy_delta = Telemetry.power * func.cast(delta_expr, Numeric(20, 10))
+    energy_delta = dynamic_power * func.cast(delta_expr, Numeric(20, 10))
 
     shifted_ts = Telemetry.recorded_at - func.make_interval(0, 0, 0, shift_days)
     shifted_bucket = func.date_trunc("month", shifted_ts).label("period")
@@ -187,10 +199,12 @@ def get_billing_monthly_energy(
             ).label("energy_delta"),
         )
         .join(Device, Device.id == Telemetry.device_id)
+        .outerjoin(c1, and_(c1.device_id == Telemetry.device_id, c1.channel_number == 1, c1.is_active == True))
+        .outerjoin(c2, and_(c2.device_id == Telemetry.device_id, c2.channel_number == 2, c2.is_active == True))
+        .outerjoin(c3, and_(c3.device_id == Telemetry.device_id, c3.channel_number == 3, c3.is_active == True))
+        .outerjoin(c4, and_(c4.device_id == Telemetry.device_id, c4.channel_number == 4, c4.is_active == True))
         .where(
             Device.organization_id.in_(organization_ids),
-            Telemetry.power.is_not(None),
-            Telemetry.power >= 0,
         )
         .cte("energy_cte")
     )
@@ -226,12 +240,24 @@ def get_billing_current_daily(
     if period_start > now:
         period_start = (period_start.replace(day=1) - timedelta(days=1)).replace(day=billing_start_day, hour=0, minute=0, second=0, microsecond=0)
 
+    c1 = aliased(DeviceChannel, name="c1")
+    c2 = aliased(DeviceChannel, name="c2")
+    c3 = aliased(DeviceChannel, name="c3")
+    c4 = aliased(DeviceChannel, name="c4")
+
+    dynamic_power = (
+        func.coalesce(Telemetry.ch1, 0) * func.coalesce(c1.voltage, 110)
+        + func.coalesce(Telemetry.ch2, 0) * func.coalesce(c2.voltage, 110)
+        + func.coalesce(Telemetry.ch3, 0) * func.coalesce(c3.voltage, 110)
+        + func.coalesce(Telemetry.ch4, 0) * func.coalesce(c4.voltage, 110)
+    )
+
     prev_ts = func.lag(Telemetry.recorded_at).over(
         partition_by=Telemetry.device_id,
         order_by=Telemetry.recorded_at,
     )
     delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
-    energy_delta = Telemetry.power * func.cast(delta_expr, Numeric(20, 10))
+    energy_delta = dynamic_power * func.cast(delta_expr, Numeric(20, 10))
 
     bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
 
@@ -245,10 +271,12 @@ def get_billing_current_daily(
             ).label("energy_delta"),
         )
         .join(Device, Device.id == Telemetry.device_id)
+        .outerjoin(c1, and_(c1.device_id == Telemetry.device_id, c1.channel_number == 1, c1.is_active == True))
+        .outerjoin(c2, and_(c2.device_id == Telemetry.device_id, c2.channel_number == 2, c2.is_active == True))
+        .outerjoin(c3, and_(c3.device_id == Telemetry.device_id, c3.channel_number == 3, c3.is_active == True))
+        .outerjoin(c4, and_(c4.device_id == Telemetry.device_id, c4.channel_number == 4, c4.is_active == True))
         .where(
             Device.organization_id.in_(organization_ids),
-            Telemetry.power.is_not(None),
-            Telemetry.power >= 0,
             Telemetry.recorded_at >= period_start,
         )
         .cte("energy_cte")
