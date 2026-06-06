@@ -371,7 +371,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
     const sourceData = daySeries.length > 0 ? daySeries : channelData;
 
-    const step = Math.max(1, Math.floor(sourceData.length / 200));
+    const step = Math.max(1, Math.floor(sourceData.length / 500));
     const sampled = sourceData.filter((_, i) => i % step === 0 || i === sourceData.length - 1);
 
     const filtered = sampled.filter((d) => {
@@ -382,7 +382,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
 
     const times = filtered.map((d) => {
       const t = new Date(d.recorded_at ?? "");
-      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: false });
+      return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
     });
 
     const activeChannels = deviceChannels.length > 0
@@ -406,9 +406,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       }));
 
     return {
-      grid: { left: 56, right: 16, top: 36, bottom: 34 },
+      grid: { left: 56, right: 16, top: 48, bottom: 72 },
       tooltip: { trigger: "axis" },
-      legend: { bottom: 0, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
+      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
       xAxis: {
         type: "category",
         data: times,
@@ -434,7 +434,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
     const times = currentBuffer.map((d) => {
       const t = new Date(d.recorded_at ?? "");
-      return t.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+      return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:${String(t.getSeconds()).padStart(2, "0")}`;
     });
     const series = deviceChannels
       .filter((ch) => ch.is_active)
@@ -450,9 +450,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         };
       });
     return {
-      grid: { left: 56, right: 16, top: 36, bottom: 34 },
+      grid: { left: 56, right: 16, top: 48, bottom: 72 },
       tooltip: { trigger: "axis" },
-      legend: { bottom: 0, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
+      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
       xAxis: {
         type: "category",
         data: times,
@@ -876,13 +876,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 onChange={(e) => setDayDate(e.target.value)}
               />
             </div>
-            {selectedDeviceId && deviceChannels.length > 0 ? (
-              <span className="pb-2 text-xs text-slate-500">
-                {daySeries.length} registros{dayLoading ? " · cargando..." : ""}
-              </span>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-end gap-4 mb-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">Hora desde</label>
               <input
@@ -903,6 +896,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 onFocus={(e) => e.target.select()}
               />
             </div>
+            {selectedDeviceId && deviceChannels.length > 0 ? (
+              <span className="pb-2 text-xs text-slate-500">
+                {daySeries.length} registros{dayLoading ? " · cargando..." : ""}
+              </span>
+            ) : null}
           </div>
           <Panel title="Corriente por canal (A) - Histórico">
             <Chart option={channelsOption} />
