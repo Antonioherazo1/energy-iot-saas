@@ -817,7 +817,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <button
                 className="rounded-md px-4 py-2 text-sm font-medium border border-line bg-white text-ink hover:bg-slate-50"
                 onClick={() => {
-                  setConfigChannels(deviceChannels.length > 0 ? [...deviceChannels] : [1,2,3,4].map(n => ({ id: `new-${n}`, device_id: selectedDeviceId, channel_number: n, name: `Canal ${n}`, voltage: 110, is_active: true } as DeviceChannel)));
+                  setConfigChannels(deviceChannels.length > 0 ? deviceChannels.map(ch => ({ ...ch, voltage: Number(ch.voltage) })) : [1,2,3,4].map(n => ({ id: `new-${n}`, device_id: selectedDeviceId, channel_number: n, name: `Canal ${n}`, voltage: 110, is_active: true } as DeviceChannel)));
                   setShowChannelConfig(true);
                 }}
                 type="button"
