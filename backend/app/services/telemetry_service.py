@@ -53,13 +53,13 @@ def _calc_channel_energy(
     recorded_at: datetime,
     channel_number: int,
 ) -> Decimal:
-    if ch_power is None or ch_power == 0:
-        return Decimal("0")
-    if prev is None:
+    if prev is None or ch_power is None:
         return Decimal("0")
     prev_energy = getattr(prev, f"ch{channel_number}_energy_kwh", None)
     if prev_energy is None:
         return Decimal("0")
+    if ch_power == 0:
+        return prev_energy
     delta_hours = (recorded_at - prev.recorded_at).total_seconds() / 3600
     if delta_hours <= 0:
         return prev_energy

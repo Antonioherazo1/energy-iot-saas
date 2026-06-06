@@ -740,7 +740,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   return (
     <main className="min-h-screen bg-panel text-ink">
       <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-md bg-brand text-white">
               <Zap size={21} />
@@ -786,7 +786,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-4 py-6">
+      <section className="mx-auto max-w-4xl px-4 py-6">
         {error ? <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
