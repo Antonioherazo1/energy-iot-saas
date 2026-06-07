@@ -1,4 +1,4 @@
-import { Activity, Download, Gauge, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Zap } from "lucide-react";
+import { Activity, DollarSign, Download, Gauge, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
@@ -110,6 +110,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [rangeLoading, setRangeLoading] = useState(false);
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [sideSection, setSideSection] = useState<string | null>(null);
+  const [kwhRate, setKwhRate] = useState(() => {
+    const saved = localStorage.getItem("kwh_rate");
+    return saved ? Number(saved) : 800;
+  });
   const realtimeReloadRef = useRef<number | null>(null);
 
   async function loadDashboard(activeToken = token) {
@@ -452,15 +456,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
     });
 
-    const activeChannels = deviceChannels.length > 0
-      ? deviceChannels.filter((ch) => ch.is_active)
-      : [1, 2, 3, 4].map((n) => ({
-          id: `ch${n}`,
-          channel_number: n,
-          name: `Canal ${n}`,
-          voltage: 110,
-          is_active: true,
-        })) as DeviceChannel[];
+    const activeChannels = deviceChannels.filter((ch) => ch.is_active);
 
     const series = activeChannels
       .map((ch, idx) => ({
@@ -972,6 +968,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           <Panel title="Consumo del período">
             <div className="mb-3">
               <p className="text-3xl font-semibold text-brand">{billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0).toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+              <p className="mt-1 text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0) * kwhRate))}</p>
             </div>
             {(() => {
               const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
@@ -1006,6 +1003,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           <Panel title="Comparativo mensual">
             <div className="mb-3">
               <p className="text-3xl font-semibold text-accent">{billingMonthly.reduce((s, b) => s + numeric(b.energy_kwh), 0).toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+              <p className="mt-1 text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(billingMonthly.reduce((s, b) => s + numeric(b.energy_kwh), 0) * kwhRate))}</p>
             </div>
             {billingMonthly.length > 0 && (
               <Chart option={{
@@ -1020,16 +1018,31 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           <Panel title="Periodo actual">
             {(() => {
               const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
+              const periodCost = periodTotal * kwhRate;
+              const todayTotal = billingDaily.length > 0 ? numeric(billingDaily[billingDaily.length - 1].energy_kwh) : 0;
+              const todayCost = todayTotal * kwhRate;
               const now = new Date();
               const billingDate = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
               if (billingDate > now) billingDate.setMonth(billingDate.getMonth() - 1);
               const periodStart = billingDate.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               const todayStr = now.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+              const daysInPeriod = Math.round((now.getTime() - billingDate.getTime()) / 86400000) + 1;
+              const avgDaily = daysInPeriod > 0 ? periodTotal / daysInPeriod : 0;
+              const nextBillingDate = new Date(now.getFullYear(), now.getMonth() + 1, billingStartDay);
+              const remainingDays = Math.round((nextBillingDate.getTime() - now.getTime()) / 86400000);
+              const projectedTotal = periodTotal + avgDaily * remainingDays;
+              const projectedCost = projectedTotal * kwhRate;
               return (
                 <div className="space-y-2 text-sm">
                   <div>
                     <p className="text-3xl font-semibold text-accent">{periodTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
                     <p className="text-xs text-slate-400">Desde {periodStart} hasta {todayStr}</p>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-md border border-line bg-slate-50 p-3 text-xs">
+                    <div><span className="text-slate-500">Hoy</span><p className="font-semibold text-ink">$ {Intl.NumberFormat("es-CO").format(Math.round(todayCost))}</p></div>
+                    <div><span className="text-slate-500">Periodo</span><p className="font-semibold text-ink">$ {Intl.NumberFormat("es-CO").format(Math.round(periodCost))}</p></div>
+                    <div><span className="text-slate-500">Proyeccion mensual</span><p className="font-semibold text-ink">$ {Intl.NumberFormat("es-CO").format(Math.round(projectedCost))}</p></div>
+                    <div><span className="text-slate-500">Restan {remainingDays} dias</span><p className="font-semibold text-brand">$ {Intl.NumberFormat("es-CO").format(Math.round(projectedCost - periodCost))}</p></div>
                   </div>
                   {billingMonthly.length > 0 && (
                     <div className="mt-3">
@@ -1137,6 +1150,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <SideMenuItem icon={<Zap size={18} />} label="Corte de dia" onClick={() => { setSideSection("billing-day"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Download size={18} />} label="Descargar Excel" onClick={() => { setSideSection("download"); setShowSideMenu(false); }} />
               {selectedDeviceId && <SideMenuItem icon={<Trash2 size={18} />} label="Eliminar dispositivo" onClick={() => { setSideSection("delete"); setShowSideMenu(false); }} />}
+              <SideMenuItem icon={<DollarSign size={18} />} label="Tarifa kWh" onClick={() => { setSideSection("kwh-rate"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<LogOut size={18} />} label="Salir" onClick={() => { setSideSection("logout"); setShowSideMenu(false); }} />
             </div>
           </aside>
@@ -1254,6 +1268,18 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <button className="flex-1 h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cancelar</button>
               <button className="flex-1 h-11 rounded-md bg-brand text-sm font-medium text-white" onClick={() => { setSideSection(null); logout(); }} type="button">Salir</button>
             </div>
+          </section>
+        </div>
+      )}
+
+      {/* Overlay: Tarifa kWh */}
+      {sideSection === "kwh-rate" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Tarifa kWh</h2>
+            <p className="mb-3 text-sm text-slate-500">Costo por kWh en COP para calcular el valor de la energia consumida</p>
+            <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={100} max={9999} value={kwhRate} onChange={(e) => { const v = Number(e.target.value); if (v >= 100) { setKwhRate(v); localStorage.setItem("kwh_rate", String(v)); } }} />
+            <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
       )}
