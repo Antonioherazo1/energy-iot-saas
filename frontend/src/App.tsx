@@ -840,7 +840,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                         <p className="text-4xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-xs text-slate-400">$/h <span className="text-[10px] text-slate-300">instantáneo</span></p>
+                        <p className="text-xs text-slate-400">COP/h <span className="text-[10px] text-slate-300">instantáneo</span></p>
                         <p className="text-4xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
                       </div>
                     </div>
@@ -989,8 +989,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             {(() => {
               const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
               const days = billingDaily.map((d) => {
-                const parts = d.period.split("-");
-                return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d.period;
+                const dt = new Date(d.period + "T00:00:00");
+                return dt.toLocaleDateString("es-CO", { weekday: "short", day: "numeric" });
               });
               const vals = billingDaily.map((d) => numeric(d.energy_kwh));
               const dayCount = billingDaily.length;
@@ -1024,7 +1024,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             {billingMonthly.length > 0 && (
               <Chart option={{
                 grid: { left: 52, right: 8, top: 8, bottom: 28 },
-                xAxis: { type: "category", data: billingMonthly.map((d) => { const p = d.period.split("-"); return p.length >= 2 ? `${p[1]}/${p[0]}` : d.period; }), axisLabel: { rotate: 90, fontSize: 9, color: "#526071" } },
+                xAxis: { type: "category", data: billingMonthly.map((d) => { const dt = new Date(d.period + "T00:00:00"); return dt.toLocaleDateString("es-CO", { month: "short" }); }), axisLabel: { rotate: 90, fontSize: 9, color: "#526071" } },
                 yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                 series: [{ type: "bar", data: billingMonthly.map((d) => numeric(d.energy_kwh)), itemStyle: { color: "#2563eb" } }],
                 tooltip: { trigger: "axis" },
@@ -1081,7 +1081,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.4fr]">
+        <div className="mt-6">
           <Panel title="Estado de dispositivos">
             {newDeviceKey ? (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1098,6 +1098,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   <tr>
                     <th className="py-3 font-medium">Dispositivo</th>
                     <th className="py-3 font-medium">Codigo</th>
+                    <th className="py-3 font-medium">Estado</th>
                     <th className="py-3 font-medium">Ultimo dato</th>
                   </tr>
                 </thead>
@@ -1106,46 +1107,17 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     <tr className="border-b border-slate-100" key={device.device_id}>
                       <td className="py-3 font-medium">{device.name}</td>
                       <td className="py-3 font-mono text-xs">{device.code}</td>
+                      <td className="py-3">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${device.is_online ? "text-green-600" : "text-slate-400"}`}>
+                          <span className={`h-2 w-2 rounded-full ${device.is_online ? "bg-green-500" : "bg-slate-300"}`} />
+                          {device.is_online ? "Online" : "Offline"}
+                        </span>
+                      </td>
                       <td className="py-3 text-slate-600">{formatDate(device.last_seen_at)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          </Panel>
-
-          <Panel title="Telemetria por rango">
-            <div className="flex flex-wrap items-end gap-2 rounded-md border border-line bg-slate-50 p-3">
-              <label className="flex-1 min-w-[180px]">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Desde</span>
-                <input
-                  className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                  type="datetime-local"
-                  value={rangeStart}
-                  onChange={(e) => setRangeStart(e.target.value)}
-                />
-              </label>
-              <label className="flex-1 min-w-[180px]">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Hasta</span>
-                <input
-                  className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                  type="datetime-local"
-                  value={rangeEnd}
-                  onChange={(e) => setRangeEnd(e.target.value)}
-                />
-              </label>
-              <button
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-white"
-                onClick={() => {
-                  const startUtc = rangeStart ? new Date(rangeStart).toISOString() : undefined;
-                  const endUtc = rangeEnd ? new Date(rangeEnd).toISOString() : undefined;
-                  downloadTelemetryExcel(token, startUtc, endUtc);
-                }}
-                type="button"
-              >
-                <Download size={16} />
-                Descargar Excel
-              </button>
             </div>
           </Panel>
         </div>
