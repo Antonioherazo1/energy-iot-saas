@@ -8,23 +8,26 @@ type ChartProps = {
 
 export default function Chart({ option }: ChartProps) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<echarts.ECharts | null>(null);
 
   useEffect(() => {
-    if (!ref.current) {
-      return;
-    }
-    const chart = echarts.init(ref.current);
-    chart.setOption(option);
+    if (!ref.current) return;
+    chartRef.current = echarts.init(ref.current);
+    chartRef.current.setOption(option);
 
-    const resize = () => chart.resize();
+    const resize = () => chartRef.current?.resize();
     window.addEventListener("resize", resize);
 
     return () => {
       window.removeEventListener("resize", resize);
-      chart.dispose();
+      chartRef.current?.dispose();
+      chartRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    chartRef.current?.setOption(option);
   }, [option]);
 
   return <div ref={ref} className="h-72 w-full" />;
 }
-

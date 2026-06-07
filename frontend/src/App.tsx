@@ -342,13 +342,16 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     if (!selectedDeviceId) return;
     setCurrentBuffer([]);
     void loadRealtimeBuffer();
-    void pollLatestTelemetry();
-    const interval = window.setInterval(() => {
-      void loadRealtimeBuffer();
-      void pollLatestTelemetry();
-    }, 5000);
-    return () => window.clearInterval(interval);
+    const bufInterval = window.setInterval(() => void loadRealtimeBuffer(), 5000);
+    return () => window.clearInterval(bufInterval);
   }, [token, selectedDeviceId, realtimeMinutes]);
+
+  useEffect(() => {
+    if (!token) return;
+    void pollLatestTelemetry();
+    const ltInterval = window.setInterval(() => void pollLatestTelemetry(), 1000);
+    return () => window.clearInterval(ltInterval);
+  }, [token]);
 
   async function loadBillingData() {
     if (!token) return;
@@ -857,7 +860,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const lt = latest.find((l) => l.device_id === selectedDeviceId);
                 const currentVal = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
                 const powerVal = currentVal * ch.voltage;
-                const energyVal = lt ? numeric(lt[`ch${ch.channel_number}_energy_kwh` as keyof LatestTelemetry] as string | null) : 0;
                 return (
                   <div className="flex min-w-[200px] flex-1 items-center gap-4 rounded-md border border-line p-3" key={ch.id}>
                     <div className="min-w-0">
@@ -866,15 +868,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-slate-400">A</p>
-                      <p className="text-xl font-bold text-ink">{currentVal.toFixed(2)}</p>
+                      <p className="text-xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(2)}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-slate-400">W</p>
-                      <p className="text-xl font-bold text-brand">{powerVal.toFixed(1)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-slate-400">kWh</p>
-                      <p className="text-xl font-bold text-accent">{energyVal.toFixed(2)}</p>
+                      <p className="text-xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
                     </div>
                   </div>
                 );
