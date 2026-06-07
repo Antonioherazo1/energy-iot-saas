@@ -474,13 +474,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     return {
       grid: { left: 56, right: 16, top: 48, bottom: 72 },
       tooltip: { trigger: "axis" },
-      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
+      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: 12 }, icon: "circle" },
       xAxis: {
         type: "category",
         data: times,
         axisLabel: {
           color: "#526071",
-          fontSize: 10,
+          fontSize: 11,
           rotate: 90,
           showMaxLabel: true,
           interval: Math.max(1, Math.floor(times.length / 24)),
@@ -489,7 +489,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       yAxis: {
         type: "value",
         name: "Amperios",
-        axisLabel: { color: "#526071" },
+        nameTextStyle: { fontSize: 12 },
+        axisLabel: { color: "#526071", fontSize: 11 },
         splitLine: { lineStyle: { color: "#e4e8ef" } },
       },
       series,
@@ -518,13 +519,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     return {
       grid: { left: 56, right: 16, top: 48, bottom: 72 },
       tooltip: { trigger: "axis" },
-      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: 11 }, icon: "circle" },
+      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: 12 }, icon: "circle" },
       xAxis: {
         type: "category",
         data: times,
         axisLabel: {
           color: "#526071",
-          fontSize: 10,
+          fontSize: 11,
           rotate: 90,
           showMaxLabel: true,
           interval: Math.max(1, Math.floor(times.length / 24)),
@@ -533,7 +534,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       yAxis: {
         type: "value",
         name: "Amperios",
-        axisLabel: { color: "#526071" },
+        nameTextStyle: { fontSize: 12 },
+        axisLabel: { color: "#526071", fontSize: 11 },
         splitLine: { lineStyle: { color: "#e4e8ef" } },
       },
       series,
@@ -883,45 +885,45 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             {/* Row 2: Total power, daily energy & cost */}
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
-                <p className="text-xs font-medium text-slate-500">Potencia total <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" /></p>
-                <p className="mt-1 text-3xl font-bold text-ink">
+                <p className="text-sm font-medium text-slate-500">Potencia total <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" /></p>
+                <p className="mt-1 text-4xl font-bold text-ink">
                   {deviceChannels.filter((ch) => ch.is_active).reduce((sum, ch) => {
                     const lt = latest.find((l) => l.device_id === selectedDeviceId);
                     const c = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
                     return sum + c * ch.voltage;
-                  }, 0).toFixed(0)} <span className="text-base font-normal text-slate-500">W</span>
+                  }, 0).toFixed(0)} <span className="text-lg font-normal text-slate-500">W</span>
                 </p>
                 <p className="mt-2 text-sm text-slate-400">Tarifa: $ {Intl.NumberFormat("es-CO").format(kwhRate)} / kWh</p>
               </div>
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
-                <p className="mb-1 text-xs font-medium text-slate-500">Energia del dia</p>
+                <p className="mb-1 text-sm font-medium text-slate-500">Energia del dia</p>
                 {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
                   const chData = channelDailyEnergy.find((d) => d.channel_number === ch.channel_number);
                   return (
-                    <div className="flex justify-between text-xs" key={ch.id}>
+                    <div className="flex justify-between text-sm" key={ch.id}>
                       <span className="text-slate-500">{ch.name}</span>
-                      <span className="font-medium">{chData ? numeric(chData.energy_kwh).toFixed(2) : "0.00"} kWh</span>
+                      <span className="font-semibold">{chData ? numeric(chData.energy_kwh).toFixed(2) : "0.00"} kWh</span>
                     </div>
                   );
                 })}
-                <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-semibold">
+                <div className="mt-2 flex justify-between border-t border-line pt-2 text-sm font-bold">
                   <span>Total</span>
                   <span>{channelDailyEnergy.reduce((s, d) => s + numeric(d.energy_kwh), 0).toFixed(2)} kWh</span>
                 </div>
               </div>
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
-                <p className="mb-1 text-xs font-medium text-slate-500">Costo del dia</p>
+                <p className="mb-1 text-sm font-medium text-slate-500">Costo del dia</p>
                 {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
                   const chData = channelDailyEnergy.find((d) => d.channel_number === ch.channel_number);
                   const chCost = chData ? numeric(chData.energy_kwh) * kwhRate : 0;
                   return (
-                    <div className="flex justify-between text-xs" key={ch.id}>
+                    <div className="flex justify-between text-sm" key={ch.id}>
                       <span className="text-slate-500">{ch.name}</span>
-                      <span className="font-medium">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(chCost)}</span>
+                      <span className="font-semibold">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(chCost)}</span>
                     </div>
                   );
                 })}
-                <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-semibold">
+                <div className="mt-2 flex justify-between border-t border-line pt-2 text-sm font-bold">
                   <span>Total</span>
                   <span>$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(channelDailyEnergy.reduce((s, d) => s + numeric(d.energy_kwh), 0) * kwhRate)}</span>
                 </div>
@@ -1013,9 +1015,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   </div>
                   <p className="text-xs text-slate-400">{weekStart} → {weekEndStr} · semana actual</p>
                   <Chart option={{
-                    grid: { left: 36, right: 8, top: 8, bottom: 28 },
-                    xAxis: { type: "category", data: weekDays.map((d) => d.label), axisLabel: { fontSize: 9, color: "#526071" } },
-                    yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                    grid: { left: 42, right: 12, top: 12, bottom: 32 },
+                    xAxis: { type: "category", data: weekDays.map((d) => d.label), axisLabel: { fontSize: 11, color: "#526071" } },
+                    yAxis: { type: "value", axisLabel: { fontSize: 11, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                     series: [{
                       type: "bar",
                       data: weekDays.map((d) => d.kwh),
@@ -1059,9 +1061,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   </div>
                   <p className="text-xs text-slate-400">Ultimos 6 meses</p>
                   <Chart option={{
-                    grid: { left: 52, right: 8, top: 8, bottom: 28 },
-                    xAxis: { type: "category", data: months.map((m) => m.label), axisLabel: { rotate: 90, fontSize: 9, color: "#526071" } },
-                    yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                    grid: { left: 56, right: 12, top: 12, bottom: 36 },
+                    xAxis: { type: "category", data: months.map((m) => m.label), axisLabel: { rotate: 90, fontSize: 11, color: "#526071" } },
+                    yAxis: { type: "value", axisLabel: { fontSize: 11, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                     series: [{
                       type: "bar",
                       data: months.map((m) => m.kwh),
@@ -1112,13 +1114,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   {billingMonthly.length > 0 && (
                     <div className="mt-3">
                       <Chart option={{
-                        grid: { left: 36, right: 8, top: 8, bottom: 28 },
+                        grid: { left: 42, right: 12, top: 12, bottom: 36 },
                         xAxis: { type: "category", data: billingMonthly.slice().reverse().map((m) => {
                           const d = new Date(m.period + "T00:00:00");
                           d.setDate(d.getDate() + billingStartDay - 1);
                           return d.toLocaleDateString("es-CO", { month: "short" });
-                        }), axisLabel: { rotate: 90, fontSize: 9, color: "#526071" } },
-                        yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                        }), axisLabel: { rotate: 90, fontSize: 11, color: "#526071" } },
+                        yAxis: { type: "value", axisLabel: { fontSize: 11, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                         series: [{ type: "bar", data: billingMonthly.slice().reverse().map((m) => numeric(m.energy_kwh)), itemStyle: { color: "#2563eb" } }],
                         tooltip: { trigger: "axis" },
                       }} />
