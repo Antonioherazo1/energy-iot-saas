@@ -1,4 +1,4 @@
-import { Activity, DollarSign, Download, Gauge, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Zap } from "lucide-react";
+import { DollarSign, Download, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
@@ -811,70 +811,87 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       <section className="mx-auto max-w-4xl px-4 py-6">
         {error ? <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <Metric title="Dispositivos" value={summary?.total_devices ?? 0} icon={<Gauge size={18} />} />
-          <Metric title="Online" value={summary?.online_devices ?? 0} icon={<Activity size={18} />} tone="ok" />
-          <Metric title="Offline" value={summary?.offline_devices ?? 0} icon={<Activity size={18} />} tone="warn" />
-          <Metric title="Potencia actual" value={formatNumber(summary?.current_power, " W")} icon={<Zap size={18} />} />
-          <Metric title="Energia acumulada" value={formatNumber(summary?.latest_energy_kwh, " kWh")} icon={<PlugZap size={18} />} />
-        </div>
-
-        <div className="mt-6">
-          <div className="flex flex-wrap items-center gap-0 border-b border-line">
-            {latest.map((lt) => (
-              <button
-                key={lt.device_id}
-                className={`-mb-px px-5 py-2.5 text-sm font-medium transition-colors ${
-                  selectedDeviceId === lt.device_id
-                    ? "border-b-2 border-brand text-brand"
-                    : "text-slate-500 hover:text-ink"
-                }`}
-                onClick={() => setSelectedDeviceId(lt.device_id)}
-                type="button"
-              >
-                {lt.device_name}
-              </button>
-            ))}
-            <span className="ml-auto flex items-center gap-2 px-2 text-xs text-slate-400">
-              {latest.length} disp.
-              <button
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-slate-500 hover:bg-slate-50"
-                onClick={() => setSideSection("create-device")}
-                type="button"
-                title="Agregar dispositivo"
-              >
-                <Plus size={14} />
-              </button>
-            </span>
-          </div>
-        </div>
-
         {selectedDeviceId && deviceChannels.length > 0 ? (
-          <div className="mt-4 rounded-lg border border-line bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap gap-3">
-              {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
-                const lt = latest.find((l) => l.device_id === selectedDeviceId);
-                const currentVal = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
-                const powerVal = currentVal * ch.voltage;
-                return (
-                  <div className="flex min-w-[200px] flex-1 items-center gap-4 rounded-md border border-line p-3" key={ch.id}>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-slate-500">{ch.name}</p>
-                      <p className="text-xs text-slate-400">{ch.voltage}V</p>
+          <>
+            {/* Row 1: Phase cards with current, power, cost rate */}
+            <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap gap-3">
+                {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
+                  const lt = latest.find((l) => l.device_id === selectedDeviceId);
+                  const currentVal = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
+                  const powerVal = currentVal * ch.voltage;
+                  const costRate = (powerVal / 1000) * kwhRate;
+                  return (
+                    <div className="flex min-w-[240px] flex-1 items-center gap-4 rounded-md border border-line p-3" key={ch.id}>
+                      <div>
+                        <p className="text-xs font-medium text-slate-500">{ch.name}</p>
+                        <p className="text-xs text-slate-400">{ch.voltage}V</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-slate-400">A</p>
+                        <p className="text-xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(2)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-slate-400">W</p>
+                        <p className="text-xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-slate-400">$/hr</p>
+                        <p className="text-xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs text-slate-400">A</p>
-                      <p className="text-xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(2)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-slate-400">W</p>
-                      <p className="text-xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+
+            {/* Row 2: Total power, daily energy & cost */}
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+                <p className="text-xs font-medium text-slate-500">Potencia total</p>
+                <p className="mt-1 text-2xl font-bold text-ink">
+                  {deviceChannels.filter((ch) => ch.is_active).reduce((sum, ch) => {
+                    const lt = latest.find((l) => l.device_id === selectedDeviceId);
+                    const c = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
+                    return sum + c * ch.voltage;
+                  }, 0).toFixed(0)} <span className="text-base font-normal text-slate-500">W</span>
+                </p>
+              </div>
+              <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+                <p className="mb-1 text-xs font-medium text-slate-500">Energia del dia</p>
+                {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
+                  const chData = channelDailyEnergy.find((d) => d.channel_number === ch.channel_number);
+                  return (
+                    <div className="flex justify-between text-xs" key={ch.id}>
+                      <span className="text-slate-500">{ch.name}</span>
+                      <span className="font-medium">{chData ? numeric(chData.energy_kwh).toFixed(2) : "0.00"} kWh</span>
+                    </div>
+                  );
+                })}
+                <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-semibold">
+                  <span>Total</span>
+                  <span>{channelDailyEnergy.reduce((s, d) => s + numeric(d.energy_kwh), 0).toFixed(2)} kWh</span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+                <p className="mb-1 text-xs font-medium text-slate-500">Costo del dia</p>
+                {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
+                  const chData = channelDailyEnergy.find((d) => d.channel_number === ch.channel_number);
+                  const chCost = chData ? numeric(chData.energy_kwh) * kwhRate : 0;
+                  return (
+                    <div className="flex justify-between text-xs" key={ch.id}>
+                      <span className="text-slate-500">{ch.name}</span>
+                      <span className="font-medium">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(chCost)}</span>
+                    </div>
+                  );
+                })}
+                <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-semibold">
+                  <span>Total</span>
+                  <span>$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(channelDailyEnergy.reduce((s, d) => s + numeric(d.energy_kwh), 0) * kwhRate)}</span>
+                </div>
+              </div>
+            </div>
+          </>
         ) : null}
 
         <div className="mt-4 overflow-x-auto">
@@ -944,6 +961,37 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           <Panel title="Corriente por canal (A) - Histórico">
             <Chart option={channelsOption} />
           </Panel>
+        </div>
+
+        {/* Device tabs */}
+        <div className="mt-6">
+          <div className="flex flex-wrap items-center gap-0 border-b border-line">
+            {latest.map((lt) => (
+              <button
+                key={lt.device_id}
+                className={`-mb-px px-5 py-2.5 text-sm font-medium transition-colors ${
+                  selectedDeviceId === lt.device_id
+                    ? "border-b-2 border-brand text-brand"
+                    : "text-slate-500 hover:text-ink"
+                }`}
+                onClick={() => setSelectedDeviceId(lt.device_id)}
+                type="button"
+              >
+                {lt.device_name}
+              </button>
+            ))}
+            <span className="ml-auto flex items-center gap-2 px-2 text-xs text-slate-400">
+              {latest.length} disp.
+              <button
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-slate-500 hover:bg-slate-50"
+                onClick={() => setSideSection("create-device")}
+                type="button"
+                title="Agregar dispositivo"
+              >
+                <Plus size={14} />
+              </button>
+            </span>
+          </div>
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
