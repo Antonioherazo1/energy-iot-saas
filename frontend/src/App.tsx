@@ -26,6 +26,7 @@ import {
   getTelemetryByRange,
   getChannelDaySeries,
   deleteDevice,
+  getDbSize,
   linkDevice,
   setupChannels,
   updateChannel,
@@ -115,6 +116,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     return saved ? Number(saved) : 800;
   });
   const realtimeReloadRef = useRef<number | null>(null);
+  const [dbSize, setDbSize] = useState<number | null>(null);
 
   async function loadDashboard(activeToken = token) {
     if (!activeToken) {
@@ -133,6 +135,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         getDailyEnergy(activeToken),
         getMonthlyEnergy(activeToken),
         getChannelTimeSeries(activeToken),
+        getDbSize(activeToken).then((r) => setDbSize(r.size_mb)).catch(() => {}),
       ]);
       setUser(currentUser);
       setOrganizations(orgData);
@@ -353,7 +356,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   useEffect(() => {
     if (!token) return;
     void pollLatestTelemetry();
-    const ltInterval = window.setInterval(() => void pollLatestTelemetry(), 1000);
+    const ltInterval = window.setInterval(() => void pollLatestTelemetry(), 3000);
     return () => window.clearInterval(ltInterval);
   }, [token]);
 
@@ -786,7 +789,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden text-sm text-slate-500 md:inline">
+            <span className="hidden items-center gap-3 text-sm text-slate-500 md:flex">
+              {dbSize !== null ? <span className="text-xs text-slate-400">BD {dbSize.toFixed(1)} MB</span> : null}
               {lastUpdatedAt ? `Actualizado ${lastUpdatedAt.toLocaleTimeString("es-CO")}` : "Sin actualizar"}
             </span>
             <button
@@ -829,15 +833,15 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       </div>
                       <div className="text-center">
                         <p className="text-xs text-slate-400">A</p>
-                        <p className="text-3xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(2)}</p>
+                        <p className="text-4xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(2)}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-xs text-slate-400">W</p>
-                        <p className="text-3xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
+                        <p className="text-4xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-xs text-slate-400">$/h <span className="text-[10px] text-slate-300">instantáneo</span></p>
-                        <p className="text-3xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
+                        <p className="text-4xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
                       </div>
                     </div>
                   );
@@ -925,43 +929,22 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </div>
 
         <div className="mt-6 overflow-x-auto">
-          <div className="flex flex-wrap items-end gap-4 mb-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Fecha</label>
-              <input
-                className="h-10 w-40 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                type="date"
-                value={dayDate}
-                onChange={(e) => setDayDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Hora desde</label>
-              <input
-                className="h-10 w-24 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                type="number" min={0} max={23}
-                value={channelHourFrom}
-                onChange={(e) => setChannelHourFrom(Number(e.target.value))}
-                onFocus={(e) => e.target.select()}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Hora hasta</label>
-              <input
-                className="h-10 w-24 rounded-md border border-line px-3 text-sm outline-none focus:border-brand"
-                type="number" min={1} max={24}
-                value={channelHourTo}
-                onChange={(e) => setChannelHourTo(Number(e.target.value))}
-                onFocus={(e) => e.target.select()}
-              />
-            </div>
-            {selectedDeviceId && deviceChannels.length > 0 ? (
-              <span className="pb-2 text-xs text-slate-500">
-                {daySeries.length} registros{dayLoading ? " · cargando..." : ""}
-              </span>
-            ) : null}
-          </div>
           <Panel title="Corriente por canal (A) - Histórico">
+            <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Fecha</span>
+                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} />
+              </label>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Desde</span>
+                <input className="h-8 w-16 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="number" min={0} max={23} value={channelHourFrom} onChange={(e) => setChannelHourFrom(Number(e.target.value))} onFocus={(e) => e.target.select()} />
+              </label>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Hasta</span>
+                <input className="h-8 w-16 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="number" min={1} max={24} value={channelHourTo} onChange={(e) => setChannelHourTo(Number(e.target.value))} onFocus={(e) => e.target.select()} />
+              </label>
+              <span className="text-slate-300">{daySeries.length} registros{dayLoading ? " · cargando" : ""}</span>
+            </div>
             <Chart option={channelsOption} />
           </Panel>
         </div>
@@ -997,25 +980,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Panel title="Energia por canal (kWh) - Hoy">
-            <div className="space-y-2 text-sm">
-              {deviceChannels.filter((ch) => ch.is_active).length > 0 ? (
-                deviceChannels.filter((ch) => ch.is_active).map((ch) => {
-                  const chData = channelDailyEnergy.find((d) => d.channel_number === ch.channel_number);
-                  const energy = chData ? numeric(chData.energy_kwh) : 0;
-                  return (
-                    <div className="flex justify-between border-b border-slate-100 py-1" key={ch.channel_number}>
-                      <span className="text-slate-600">{ch.name}</span>
-                      <span className="font-semibold">{energy.toFixed(2)} kWh</span>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-slate-400">Selecciona un dispositivo con canales configurados</p>
-              )}
-            </div>
-          </Panel>
+        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Panel title="Consumo del período">
             <div className="mb-3">
               <p className="text-3xl font-semibold text-brand">{billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0).toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>

@@ -239,3 +239,7 @@ export function updateChannel(token: string, deviceId: string, channelNumber: nu
 export function deleteDevice(token: string, deviceId: string): Promise<void> {
   return request<void>(`/devices/${deviceId}`, { method: "DELETE", token });
 }
+
+export function getDbSize(token: string): Promise<{ size_mb: number }> {
+  return request("/dashboard/db-size", { token });
+}

@@ -7,10 +7,11 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.telemetry import Telemetry
@@ -265,4 +266,14 @@ def telemetry_range(
         .limit(limit)
     )
     return [dict(row._mapping) for row in rows]
+
+
+@router.get("/db-size")
+def db_size(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = db.execute(text("SELECT pg_database_size(current_database()) / 1048576.0 AS size_mb"))
+    row = result.one()
+    return {"size_mb": round(float(row.size_mb), 1)}
 
