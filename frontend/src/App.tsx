@@ -815,6 +815,37 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       <section className="mx-auto max-w-4xl px-4 py-6">
         {error ? <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
+        {/* Device tabs at top */}
+        <div className="mt-2">
+          <div className="flex flex-wrap items-center gap-0 border-b border-line">
+            {latest.map((lt) => (
+              <button
+                key={lt.device_id}
+                className={`-mb-px px-5 py-2.5 text-sm font-medium transition-colors ${
+                  selectedDeviceId === lt.device_id
+                    ? "border-b-2 border-brand text-brand"
+                    : "text-slate-500 hover:text-ink"
+                }`}
+                onClick={() => setSelectedDeviceId(lt.device_id)}
+                type="button"
+              >
+                {lt.device_name}
+              </button>
+            ))}
+            <span className="ml-auto flex items-center gap-2 px-2 text-xs text-slate-400">
+              {latest.length} disp.
+              <button
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-slate-500 hover:bg-slate-50"
+                onClick={() => setSideSection("create-device")}
+                type="button"
+                title="Agregar dispositivo"
+              >
+                <Plus size={14} />
+              </button>
+            </span>
+          </div>
+        </div>
+
         {selectedDeviceId && deviceChannels.length > 0 ? (
           <>
             {/* Row 1: Phase cards with current, power, cost rate */}
@@ -949,87 +980,105 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
         </div>
 
-        {/* Device tabs */}
-        <div className="mt-6">
-          <div className="flex flex-wrap items-center gap-0 border-b border-line">
-            {latest.map((lt) => (
-              <button
-                key={lt.device_id}
-                className={`-mb-px px-5 py-2.5 text-sm font-medium transition-colors ${
-                  selectedDeviceId === lt.device_id
-                    ? "border-b-2 border-brand text-brand"
-                    : "text-slate-500 hover:text-ink"
-                }`}
-                onClick={() => setSelectedDeviceId(lt.device_id)}
-                type="button"
-              >
-                {lt.device_name}
-              </button>
-            ))}
-            <span className="ml-auto flex items-center gap-2 px-2 text-xs text-slate-400">
-              {latest.length} disp.
-              <button
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line text-slate-500 hover:bg-slate-50"
-                onClick={() => setSideSection("create-device")}
-                type="button"
-                title="Agregar dispositivo"
-              >
-                <Plus size={14} />
-              </button>
-            </span>
-          </div>
-        </div>
-
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Panel title="Consumo del período">
-            <div className="mb-3">
-              <p className="text-3xl font-semibold text-brand">{billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0).toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-              <p className="mt-1 text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0) * kwhRate))}</p>
-            </div>
             {(() => {
-              const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
-              const days = billingDaily.map((d) => {
-                const dt = new Date(d.period + "T00:00:00");
-                return dt.toLocaleDateString("es-CO", { weekday: "short", day: "numeric" });
-              });
-              const vals = billingDaily.map((d) => numeric(d.energy_kwh));
-              const dayCount = billingDaily.length;
-              const avgDaily = dayCount > 0 ? periodTotal / dayCount : 0;
               const now = new Date();
-              const billingDate = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
-              if (billingDate > now) billingDate.setMonth(billingDate.getMonth() - 1);
-              const periodStartStr = billingDate.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
-              const todayStr = now.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+              const dayOfWeek = now.getDay();
+              const monOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+              const monday = new Date(now);
+              monday.setDate(now.getDate() + monOffset);
+              const weekDays = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
+                const dateStr = d.toISOString().split("T")[0];
+                const dayData = daily.filter((item) => item.period === dateStr);
+                const kwh = dayData.reduce((s, item) => s + numeric(item.energy_kwh), 0);
+                return {
+                  label: d.toLocaleDateString("es-CO", { weekday: "short" }),
+                  cost: Math.round(kwh * kwhRate),
+                  kwh,
+                };
+              });
+              const weekTotal = weekDays.reduce((s, d) => s + d.kwh, 0);
+              const weekStart = monday.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+              const weekEnd = new Date(monday);
+              weekEnd.setDate(monday.getDate() + 6);
+              const weekEndStr = weekEnd.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               return (
                 <div className="space-y-2 text-sm">
-                  <p className="text-xs text-slate-400">{periodStartStr} → {todayStr} · ~{avgDaily.toFixed(1)} kWh/día</p>
-                  {billingDaily.length > 0 && (
-                    <Chart option={{
-                      grid: { left: 36, right: 8, top: 8, bottom: 28 },
-                      xAxis: { type: "category", data: days, axisLabel: { rotate: 90, fontSize: 9, color: "#526071", interval: Math.max(1, Math.floor(days.length / 15)) } },
-                      yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
-                      series: [{ type: "bar", data: vals, itemStyle: { color: "#0f766e" } }],
-                      tooltip: { trigger: "axis" },
-                    }} />
-                  )}
+                  <div className="mb-3">
+                    <p className="text-3xl font-semibold text-brand">{weekTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                    <p className="mt-1 text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(weekTotal * kwhRate))}</p>
+                  </div>
+                  <p className="text-xs text-slate-400">{weekStart} → {weekEndStr} · semana actual</p>
+                  <Chart option={{
+                    grid: { left: 36, right: 8, top: 8, bottom: 28 },
+                    xAxis: { type: "category", data: weekDays.map((d) => d.label), axisLabel: { fontSize: 9, color: "#526071" } },
+                    yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                    series: [{
+                      type: "bar",
+                      data: weekDays.map((d) => d.kwh),
+                      itemStyle: { color: "#0f766e" },
+                    }],
+                    tooltip: {
+                      trigger: "axis",
+                      formatter: (params: any) => {
+                        const p = params[0];
+                        const cost = Math.round(p.value * kwhRate);
+                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
+                      },
+                    },
+                  }} />
                 </div>
               );
             })()}
           </Panel>
           <Panel title="Comparativo mensual">
-            <div className="mb-3">
-              <p className="text-3xl font-semibold text-accent">{billingMonthly.reduce((s, b) => s + numeric(b.energy_kwh), 0).toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-              <p className="mt-1 text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(billingMonthly.reduce((s, b) => s + numeric(b.energy_kwh), 0) * kwhRate))}</p>
-            </div>
-            {billingMonthly.length > 0 && (
-              <Chart option={{
-                grid: { left: 52, right: 8, top: 8, bottom: 28 },
-                xAxis: { type: "category", data: billingMonthly.map((d) => { const dt = new Date(d.period + "T00:00:00"); return dt.toLocaleDateString("es-CO", { month: "short" }); }), axisLabel: { rotate: 90, fontSize: 9, color: "#526071" } },
-                yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
-                series: [{ type: "bar", data: billingMonthly.map((d) => numeric(d.energy_kwh)), itemStyle: { color: "#2563eb" } }],
-                tooltip: { trigger: "axis" },
-              }} />
-            )}
+            {(() => {
+              const now = new Date();
+              const months = Array.from({ length: 6 }, (_, i) => {
+                const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, "0");
+                const period = `${y}-${m}-01`;
+                const found = billingMonthly.find((item) => item.period === period);
+                const kwh = found ? numeric(found.energy_kwh) : 0;
+                return {
+                  label: d.toLocaleDateString("es-CO", { month: "short" }),
+                  kwh,
+                  cost: Math.round(kwh * kwhRate),
+                };
+              });
+              const total6 = months.reduce((s, m) => s + m.kwh, 0);
+              return (
+                <div className="space-y-2 text-sm">
+                  <div className="mb-3">
+                    <p className="text-3xl font-semibold text-accent">{total6.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                    <p className="mt-1 text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(total6 * kwhRate))}</p>
+                  </div>
+                  <p className="text-xs text-slate-400">Ultimos 6 meses</p>
+                  <Chart option={{
+                    grid: { left: 52, right: 8, top: 8, bottom: 28 },
+                    xAxis: { type: "category", data: months.map((m) => m.label), axisLabel: { rotate: 90, fontSize: 9, color: "#526071" } },
+                    yAxis: { type: "value", axisLabel: { fontSize: 9, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                    series: [{
+                      type: "bar",
+                      data: months.map((m) => m.kwh),
+                      itemStyle: { color: "#2563eb" },
+                    }],
+                    tooltip: {
+                      trigger: "axis",
+                      formatter: (params: any) => {
+                        const p = params[0];
+                        const cost = Math.round(p.value * kwhRate);
+                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
+                      },
+                    },
+                  }} />
+                </div>
+              );
+            })()}
           </Panel>
           <Panel title="Periodo actual">
             {(() => {
