@@ -320,7 +320,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
 
   async function loadRealtimeBuffer() {
     if (!token || !selectedDeviceId) return;
-    setBufferLoading(true);
+    if (currentBuffer.length === 0) setBufferLoading(true);
     try {
       const data = await getRealtimeCurrents(token, selectedDeviceId, realtimeMinutes);
       setCurrentBuffer(data);
@@ -345,9 +345,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   useEffect(() => {
     if (!selectedDeviceId) return;
     setCurrentBuffer([]);
-    void loadRealtimeBuffer();
+    const timer = setTimeout(() => void loadRealtimeBuffer(), 50);
     const bufInterval = window.setInterval(() => void loadRealtimeBuffer(), 5000);
-    return () => window.clearInterval(bufInterval);
+    return () => { clearTimeout(timer); window.clearInterval(bufInterval); };
   }, [token, selectedDeviceId, realtimeMinutes]);
 
   useEffect(() => {
@@ -829,15 +829,15 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       </div>
                       <div className="text-center">
                         <p className="text-xs text-slate-400">A</p>
-                        <p className="text-xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(2)}</p>
+                        <p className="text-3xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(2)}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-xs text-slate-400">W</p>
-                        <p className="text-xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
+                        <p className="text-3xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-xs text-slate-400">$/hr</p>
-                        <p className="text-xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
+                        <p className="text-xs text-slate-400">$/h <span className="text-[10px] text-slate-300">instantáneo</span></p>
+                        <p className="text-3xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
                       </div>
                     </div>
                   );
@@ -848,14 +848,15 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             {/* Row 2: Total power, daily energy & cost */}
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
-                <p className="text-xs font-medium text-slate-500">Potencia total</p>
-                <p className="mt-1 text-2xl font-bold text-ink">
+                <p className="text-xs font-medium text-slate-500">Potencia total <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" /></p>
+                <p className="mt-1 text-3xl font-bold text-ink">
                   {deviceChannels.filter((ch) => ch.is_active).reduce((sum, ch) => {
                     const lt = latest.find((l) => l.device_id === selectedDeviceId);
                     const c = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
                     return sum + c * ch.voltage;
                   }, 0).toFixed(0)} <span className="text-base font-normal text-slate-500">W</span>
                 </p>
+                <p className="mt-2 text-sm text-slate-400">Tarifa: $ {Intl.NumberFormat("es-CO").format(kwhRate)} / kWh</p>
               </div>
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="mb-1 text-xs font-medium text-slate-500">Energia del dia</p>
@@ -896,10 +897,12 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
 
         <div className="mt-4 overflow-x-auto">
             <Panel title="Corriente por canal (A) - Tiempo real">
-              {bufferLoading ? (
-                <div className="flex items-center justify-center py-8 text-sm text-slate-500">Cargando...</div>
-              ) : currentBuffer.length === 0 ? (
-                <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos en los últimos {realtimeMinutes} minutos</div>
+              {currentBuffer.length === 0 ? (
+                bufferLoading ? (
+                  <div className="flex items-center justify-center py-8 text-sm text-slate-500">Cargando...</div>
+                ) : (
+                  <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos en los últimos {realtimeMinutes} minutos</div>
+                )
               ) : (
                 <Chart option={realtimeCurrentOption} />
               )}

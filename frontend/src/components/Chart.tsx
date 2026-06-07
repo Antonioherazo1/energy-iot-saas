@@ -26,7 +26,7 @@ export default function Chart({ option }: ChartProps) {
   }, []);
 
   useEffect(() => {
-    chartRef.current?.setOption(option);
+    chartRef.current?.setOption(option, { notMerge: true });
   }, [option]);
 
   return <div ref={ref} className="h-72 w-full" />;
