@@ -924,7 +924,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                         <div className="flex flex-col items-center">
                           <p className="text-xs text-slate-400">COP/h</p>
                           <p className="text-[10px] leading-none text-slate-300">instantáneo</p>
-                          <p className="mt-auto text-4xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
+                          <p className="mt-auto text-4xl font-bold text-accent transition-all duration-200">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
                         </div>
                       </div>
                     </div>
@@ -1209,6 +1209,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               );
             })()}
           </Panel>
+        </div>
+        <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
           <Panel title="Periodo actual">
             {(() => {
               const now = new Date();
