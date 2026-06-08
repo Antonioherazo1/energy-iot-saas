@@ -17,9 +17,11 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("devices", sa.Column("device_key_hash", sa.String(length=255), nullable=True))
+    # Column already exists in 0001_initial_schema
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column("devices", "device_key_hash")
+    # Column already exists in 0001_initial_schema
+    pass
 
