@@ -163,6 +163,10 @@ export function getBillingDailyChannels(token: string, deviceId: string): Promis
   return request(`/dashboard/energy/billing/daily/channels?device_id=${deviceId}`, { token });
 }
 
+export function recalculateDailyEnergy(token: string, days = 30): Promise<EnergyBucket[]> {
+  return request<EnergyBucket[]>(`/dashboard/energy/recalculate?days=${days}`, { token, method: "POST" });
+}
+
 export function getChannelTimeSeries(token: string): Promise<LatestTelemetry[]> {
   return request<LatestTelemetry[]>("/dashboard/channels/latest?limit=60", { token });
 }

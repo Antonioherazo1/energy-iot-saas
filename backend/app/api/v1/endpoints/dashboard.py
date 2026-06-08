@@ -17,7 +17,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.schemas.dashboard import DashboardSummaryRead, DeviceStatusRead, EnergyBucketRead, LatestTelemetryRead
-from app.services.dashboard_service import get_accessible_organization_ids, get_billing_current_daily, get_billing_daily_per_channel, get_billing_monthly_energy, get_channel_day_series, get_device_status, get_energy_by_period, get_latest_telemetry, get_realtime_currents, get_summary
+from app.services.dashboard_service import get_accessible_organization_ids, get_billing_current_daily, get_billing_daily_per_channel, get_billing_monthly_energy, get_channel_day_series, get_device_status, get_energy_by_period, get_latest_telemetry, get_realtime_currents, get_summary, recalculate_daily_energy
 
 router = APIRouter()
 
@@ -276,4 +276,16 @@ def db_size(
     result = db.execute(text("SELECT pg_database_size(current_database()) / 1048576.0 AS size_mb"))
     row = result.one()
     return {"size_mb": round(float(row.size_mb), 1)}
+
+
+@router.post("/energy/recalculate")
+def energy_recalculate(
+    days: int = Query(default=30, ge=1, le=365),
+    organization_id: uuid.UUID | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return recalculate_daily_energy(
+        db=db, user=current_user, days=days, organization_id=organization_id,
+    )
 

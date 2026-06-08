@@ -20,6 +20,7 @@ import {
   getOrganizations,
   getRealtimeCurrents,
   getSummary,
+  recalculateDailyEnergy,
   login,
   signup,
   downloadTelemetryExcel,
@@ -116,6 +117,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [billingDaily, setBillingDaily] = useState<EnergyBucket[]>([]);
   const [billingMonthly, setBillingMonthly] = useState<EnergyBucket[]>([]);
   const [channelDailyEnergy, setChannelDailyEnergy] = useState<{ channel_number: number; energy_kwh: string }[]>([]);
+  const [recalculating, setRecalculating] = useState(false);
   const energyBaseline = useRef<Record<number, number>>({});
   const [channelHourFrom, setChannelHourFrom] = useState(0);
   const [channelHourTo, setChannelHourTo] = useState(() => Math.max(1, Math.min(24, new Date().getHours() + 1)));
@@ -1046,6 +1048,19 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     <p className="text-3xl font-semibold text-brand">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
                     <p className="text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(monthTotal * kwhRate))}</p>
                     <p className="text-xs text-slate-400 ml-auto">Promedio: {avgDay.toFixed(2)} kWh/dia</p>
+                    <button
+                      className="h-7 rounded border border-line bg-white px-2 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-40"
+                      disabled={recalculating}
+                      onClick={async () => {
+                        setRecalculating(true);
+                        try {
+                          const data = await recalculateDailyEnergy(token);
+                          setDaily(data);
+                        } catch { /* ignore */ }
+                        setRecalculating(false);
+                      }}
+                      type="button"
+                    >{recalculating ? "..." : "Recalcular"}</button>
                   </div>
                   <Chart option={{
                     grid: { left: 42, right: 12, top: 12, bottom: 32 },

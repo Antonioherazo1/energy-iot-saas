@@ -508,6 +508,75 @@ def get_channel_day_series(
     return result
 
 
+def recalculate_daily_energy(
+    db: Session,
+    user: User,
+    days: int = 30,
+    organization_id: uuid.UUID | None = None,
+) -> list[dict]:
+    organization_ids = get_accessible_organization_ids(db, user, organization_id)
+    if not organization_ids:
+        return []
+
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=days)
+
+    c1 = aliased(DeviceChannel, name="c1")
+    c2 = aliased(DeviceChannel, name="c2")
+    c3 = aliased(DeviceChannel, name="c3")
+    c4 = aliased(DeviceChannel, name="c4")
+
+    ch_power_1 = case((c1.id.is_not(None), func.coalesce(Telemetry.ch1, 0) * c1.voltage), else_=0)
+    ch_power_2 = case((c2.id.is_not(None), func.coalesce(Telemetry.ch2, 0) * c2.voltage), else_=0)
+    ch_power_3 = case((c3.id.is_not(None), func.coalesce(Telemetry.ch3, 0) * c3.voltage), else_=0)
+    ch_power_4 = case((c4.id.is_not(None), func.coalesce(Telemetry.ch4, 0) * c4.voltage), else_=0)
+    total_power = ch_power_1 + ch_power_2 + ch_power_3 + ch_power_4
+
+    prev_ts = func.lag(Telemetry.recorded_at).over(
+        partition_by=Telemetry.device_id,
+        order_by=Telemetry.recorded_at,
+    )
+    delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+    energy_delta = total_power * func.cast(delta_expr, Numeric(20, 10))
+
+    bucket = func.date_trunc("day", Telemetry.recorded_at - COL_TZ_OFFSET).label("period")
+
+    cte = (
+        select(
+            bucket,
+            Telemetry.device_id,
+            case(
+                (and_(prev_ts.is_not(None), energy_delta > 0), energy_delta),
+                else_=0,
+            ).label("energy_delta"),
+        )
+        .join(Device, Device.id == Telemetry.device_id)
+        .outerjoin(c1, and_(c1.device_id == Telemetry.device_id, c1.channel_number == 1, c1.is_active == True))
+        .outerjoin(c2, and_(c2.device_id == Telemetry.device_id, c2.channel_number == 2, c2.is_active == True))
+        .outerjoin(c3, and_(c3.device_id == Telemetry.device_id, c3.channel_number == 3, c3.is_active == True))
+        .outerjoin(c4, and_(c4.device_id == Telemetry.device_id, c4.channel_number == 4, c4.is_active == True))
+        .where(
+            Device.organization_id.in_(organization_ids),
+            Telemetry.recorded_at >= start,
+        )
+        .cte("recalc_cte")
+    )
+
+    rows = db.execute(
+        select(
+            cte.c.period,
+            func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
+        )
+        .where(cte.c.energy_delta > 0)
+        .group_by(cte.c.period)
+        .order_by(cte.c.period)
+    )
+    return [
+        {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0")}
+        for row in rows
+    ]
+
+
 def get_summary(
     db: Session,
     user: User,
