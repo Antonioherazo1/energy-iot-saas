@@ -1,4 +1,4 @@
-import { DollarSign, Download, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Zap } from "lucide-react";
+import { DollarSign, Download, Hash, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
@@ -119,12 +119,19 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     const saved = localStorage.getItem("row_font_scales");
     return saved ? JSON.parse(saved) : { row1: 100, row2: 100, row3: 100, row4: 100, row5: 100, row6: 100, chart: 100 };
   });
+  const [decimals, setDecimals] = useState(() => {
+    const saved = localStorage.getItem("decimals");
+    return saved ? JSON.parse(saved) : { current: 2, power: 1, energy: 2 };
+  });
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
 
   useEffect(() => {
     localStorage.setItem("row_font_scales", JSON.stringify(rowFontScales));
   }, [rowFontScales]);
+  useEffect(() => {
+    localStorage.setItem("decimals", JSON.stringify(decimals));
+  }, [decimals]);
 
   async function loadDashboard(activeToken = token) {
     if (!activeToken) {
@@ -867,22 +874,23 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   const powerVal = currentVal * ch.voltage;
                   const costRate = (powerVal / 1000) * kwhRate;
                   return (
-                    <div className="flex min-w-[240px] flex-1 items-center gap-4 rounded-md border border-line p-3" key={ch.id}>
-                      <div>
-                        <p className="text-xs font-medium text-slate-500">{ch.name}</p>
-                        <p className="text-xs text-slate-400">{ch.voltage}V</p>
+                    <div className="min-w-[240px] flex-1 rounded-md border border-line p-3" key={ch.id}>
+                      <div className="mb-2">
+                        <p className="text-xs font-semibold text-slate-600">{ch.name} · {ch.voltage}V</p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs text-slate-400">A</p>
-                        <p className="text-4xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(2)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-slate-400">W</p>
-                        <p className="text-4xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(1)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-slate-400">COP/h <span className="text-[10px] text-slate-300">instantáneo</span></p>
-                        <p className="text-4xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
+                      <div className="flex items-center gap-4">
+                        <div className="text-center">
+                          <p className="text-xs text-slate-400">A</p>
+                          <p className="text-4xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(decimals.current)}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-400">W</p>
+                          <p className="text-4xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(decimals.power)}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-400">COP/h <span className="text-[10px] text-slate-300">instantáneo</span></p>
+                          <p className="text-4xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1196,6 +1204,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <SideMenuItem icon={<Download size={18} />} label="Descargar Excel" onClick={() => { setSideSection("download"); setShowSideMenu(false); }} />
               {selectedDeviceId && <SideMenuItem icon={<Trash2 size={18} />} label="Eliminar dispositivo" onClick={() => { setSideSection("delete"); setShowSideMenu(false); }} />}
               <SideMenuItem icon={<DollarSign size={18} />} label="Tarifa kWh" onClick={() => { setSideSection("kwh-rate"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<Hash size={18} />} label="Decimales" onClick={() => { setSideSection("decimals"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Type size={18} />} label="Factor de fuente" onClick={() => { setSideSection("font-scale"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<LogOut size={18} />} label="Salir" onClick={() => { setSideSection("logout"); setShowSideMenu(false); }} />
             </div>
@@ -1326,6 +1335,31 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             <p className="mb-3 text-sm text-slate-500">Costo por kWh en COP para calcular el valor de la energia consumida</p>
             <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={100} max={9999} value={kwhRate} onChange={(e) => { const v = Number(e.target.value); if (v >= 100) { setKwhRate(v); localStorage.setItem("kwh_rate", String(v)); } }} />
             <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
+          </section>
+        </div>
+      )}
+
+      {/* Overlay: Decimales */}
+      {sideSection === "decimals" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Decimales</h2>
+            <p className="mb-4 text-sm text-slate-500">Numero de decimales para mostrar en las tarjetas de fase</p>
+            <div className="space-y-4">
+              {[
+                { key: "current" as const, label: "Corriente (A)" },
+                { key: "power" as const, label: "Potencia (W)" },
+                { key: "energy" as const, label: "Energia (kWh)" },
+              ].map(({ key, label }) => (
+                <div className="flex items-center gap-3" key={key}>
+                  <span className="min-w-[120px] text-sm text-slate-600">{label}</span>
+                  <button className="h-9 w-9 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={decimals[key] <= 0} onClick={() => setDecimals((prev: typeof decimals) => ({ ...prev, [key]: prev[key] - 1 }))} type="button">−</button>
+                  <span className="w-8 text-center text-sm font-semibold">{decimals[key]}</span>
+                  <button className="h-9 w-9 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={decimals[key] >= 6} onClick={() => setDecimals((prev: typeof decimals) => ({ ...prev, [key]: prev[key] + 1 }))} type="button">+</button>
+                </div>
+              ))}
+            </div>
+            <button className="mt-6 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
       )}
