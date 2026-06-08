@@ -12,6 +12,8 @@ from app.models.organization import OrganizationMember
 from app.models.telemetry import Telemetry
 from app.models.user import User
 
+COL_TZ_OFFSET = func.make_interval(0, 0, 0, 0, 5)
+
 
 def get_accessible_organization_ids(db: Session, user: User, organization_id: uuid.UUID | None = None) -> list[uuid.UUID]:
     query = select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user.id)
@@ -125,7 +127,7 @@ def get_energy_by_period(
         return []
 
     safe_limit = max(1, min(limit, 365))
-    bucket = func.date_trunc(period, Telemetry.recorded_at).label("period")
+    bucket = func.date_trunc(period, Telemetry.recorded_at - COL_TZ_OFFSET).label("period")
     per_device_period = (
         select(
             bucket,
@@ -185,7 +187,7 @@ def get_billing_monthly_energy(
     delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
     energy_delta = dynamic_power * func.cast(delta_expr, Numeric(20, 10))
 
-    shifted_ts = Telemetry.recorded_at - func.make_interval(0, 0, 0, shift_days)
+    shifted_ts = Telemetry.recorded_at - func.make_interval(0, 0, 0, shift_days) - COL_TZ_OFFSET
     shifted_bucket = func.date_trunc("month", shifted_ts).label("period")
 
     cte = (
@@ -243,7 +245,10 @@ def get_billing_daily_per_channel(
     )}
 
     now = datetime.now(timezone.utc)
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    col_midnight = now.replace(hour=5, minute=0, second=0, microsecond=0)
+    if col_midnight > now:
+        col_midnight -= timedelta(days=1)
+    day_start = col_midnight
 
     c1 = aliased(DeviceChannel, name="c1")
     c2 = aliased(DeviceChannel, name="c2")
@@ -262,7 +267,7 @@ def get_billing_daily_per_channel(
     delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
     delta_numeric = func.cast(delta_expr, Numeric(20, 10))
 
-    bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
+    bucket = func.date_trunc("day", Telemetry.recorded_at - COL_TZ_OFFSET).label("period")
 
     cte = (
         select(
@@ -319,9 +324,9 @@ def get_billing_current_daily(
         return []
 
     now = datetime.now(timezone.utc)
-    period_start = now.replace(day=billing_start_day, hour=0, minute=0, second=0, microsecond=0)
+    period_start = now.replace(day=billing_start_day, hour=5, minute=0, second=0, microsecond=0)
     if period_start > now:
-        period_start = (period_start.replace(day=1) - timedelta(days=1)).replace(day=billing_start_day, hour=0, minute=0, second=0, microsecond=0)
+        period_start = (period_start.replace(day=1) - timedelta(days=1)).replace(day=billing_start_day, hour=5, minute=0, second=0, microsecond=0)
 
     c1 = aliased(DeviceChannel, name="c1")
     c2 = aliased(DeviceChannel, name="c2")
@@ -341,7 +346,7 @@ def get_billing_current_daily(
     delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
     energy_delta = dynamic_power * func.cast(delta_expr, Numeric(20, 10))
 
-    bucket = func.date_trunc("day", Telemetry.recorded_at).label("period")
+    bucket = func.date_trunc("day", Telemetry.recorded_at - COL_TZ_OFFSET).label("period")
 
     cte = (
         select(
@@ -457,8 +462,8 @@ def get_channel_day_series(
     if device is None or device.organization_id not in org_ids:
         return []
 
-    day_start = datetime.fromisoformat(date).replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+    day_start = datetime.fromisoformat(date).replace(hour=5, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1) - timedelta(seconds=1)
 
     channels_map = {
         ch.channel_number: ch
