@@ -1,4 +1,4 @@
-import { DollarSign, Download, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Zap } from "lucide-react";
+import { DollarSign, Download, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
@@ -115,8 +115,17 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     const saved = localStorage.getItem("kwh_rate");
     return saved ? Number(saved) : 800;
   });
+  const [fontScale, setFontScale] = useState(() => {
+    const saved = localStorage.getItem("font_scale");
+    return saved ? Number(saved) : 100;
+  });
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = fontScale + "%";
+    localStorage.setItem("font_scale", String(fontScale));
+  }, [fontScale]);
 
   async function loadDashboard(activeToken = token) {
     if (!activeToken) {
@@ -1190,6 +1199,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <SideMenuItem icon={<Download size={18} />} label="Descargar Excel" onClick={() => { setSideSection("download"); setShowSideMenu(false); }} />
               {selectedDeviceId && <SideMenuItem icon={<Trash2 size={18} />} label="Eliminar dispositivo" onClick={() => { setSideSection("delete"); setShowSideMenu(false); }} />}
               <SideMenuItem icon={<DollarSign size={18} />} label="Tarifa kWh" onClick={() => { setSideSection("kwh-rate"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<Type size={18} />} label="Factor de fuente" onClick={() => { setSideSection("font-scale"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<LogOut size={18} />} label="Salir" onClick={() => { setSideSection("logout"); setShowSideMenu(false); }} />
             </div>
           </aside>
@@ -1318,6 +1328,33 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             <h2 className="mb-4 text-lg font-semibold">Tarifa kWh</h2>
             <p className="mb-3 text-sm text-slate-500">Costo por kWh en COP para calcular el valor de la energia consumida</p>
             <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={100} max={9999} value={kwhRate} onChange={(e) => { const v = Number(e.target.value); if (v >= 100) { setKwhRate(v); localStorage.setItem("kwh_rate", String(v)); } }} />
+            <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
+          </section>
+        </div>
+      )}
+
+      {/* Overlay: Factor de fuente */}
+      {sideSection === "font-scale" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Factor de fuente</h2>
+            <p className="mb-3 text-sm text-slate-500">Ajusta el tamaño de la fuente de toda la pagina</p>
+            <div className="flex flex-wrap gap-2">
+              {[80, 90, 100, 110, 120, 130, 140].map((pct) => (
+                <button
+                  key={pct}
+                  className={`flex-1 min-w-[60px] h-11 rounded-md text-sm font-medium transition-colors ${
+                    fontScale === pct
+                      ? "bg-brand text-white"
+                      : "border border-line bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                  onClick={() => setFontScale(pct)}
+                  type="button"
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
             <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
