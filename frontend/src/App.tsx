@@ -928,7 +928,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
 
             {/* Row 2: Total power, daily energy & cost */}
-            <div style={{ zoom: rowFontScales.row2 / 100 }} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div style={{ zoom: rowFontScales.row2 / 100 }} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[45%_27.5%_27.5%]">
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="text-sm font-medium text-slate-500">Potencia total <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" /></p>
                 <div className="mt-1 flex items-baseline gap-6">
