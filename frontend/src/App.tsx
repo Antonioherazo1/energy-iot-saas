@@ -1002,50 +1002,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 <span>{currentBuffer.length} registros · actualiza cada 5s</span>
               </div>
           </Panel>
-          <Panel title="Consumo diario del mes">
-            {(() => {
-              const now = new Date();
-              const year = now.getFullYear();
-              const month = String(now.getMonth() + 1).padStart(2, "0");
-              const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
-              const days = Array.from({ length: daysInMonth }, (_, i) => {
-                const day = String(i + 1).padStart(2, "0");
-                const period = `${year}-${month}-${day}`;
-                const dayData = daily.filter((item) => item.period === period);
-                const kwh = dayData.reduce((s, item) => s + numeric(item.energy_kwh), 0);
-                return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate) };
-              });
-              const monthTotal = days.reduce((s, d) => s + d.kwh, 0);
-              const avgDay = days.filter((d) => d.kwh > 0).reduce((s, d) => s + d.kwh, 0) / Math.max(1, days.filter((d) => d.kwh > 0).length);
-              return (
-                <div className="space-y-2 text-sm">
-                  <div className="mb-3 flex items-baseline gap-4">
-                    <p className="text-3xl font-semibold text-accent">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-                    <p className="text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(monthTotal * kwhRate))}</p>
-                    <p className="text-xs text-slate-400 ml-auto">Promedio: {avgDay.toFixed(2)} kWh/dia</p>
-                  </div>
-                  <Chart option={{
-                    grid: { left: 42, right: 12, top: 12, bottom: 32 },
-                    xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.floor(days.length / 15) - 1) } },
-                    yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
-                    series: [{
-                      type: "bar",
-                      data: days.map((d) => d.kwh),
-                      itemStyle: { color: "#2563eb" },
-                    }],
-                    tooltip: {
-                      trigger: "axis",
-                      formatter: (params: any) => {
-                        const p = params[0];
-                        const cost = Math.round(p.value * kwhRate);
-                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
-                      },
-                    },
-                  }} />
-                </div>
-              );
-            })()}
-          </Panel>
         </div>
 
         <div className="mt-6 overflow-x-auto">
@@ -1069,44 +1025,35 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
         </div>
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Panel title="Consumo del período">
+          <Panel title="Consumo diario del mes">
             {(() => {
               const now = new Date();
-              const dayOfWeek = now.getDay();
-              const monOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-              const monday = new Date(now);
-              monday.setDate(now.getDate() + monOffset);
-              const weekDays = Array.from({ length: 7 }, (_, i) => {
-                const d = new Date(monday);
-                d.setDate(monday.getDate() + i);
-                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-                const dayData = daily.filter((item) => item.period === dateStr);
+              const year = now.getFullYear();
+              const month = String(now.getMonth() + 1).padStart(2, "0");
+              const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+              const days = Array.from({ length: daysInMonth }, (_, i) => {
+                const day = String(i + 1).padStart(2, "0");
+                const period = `${year}-${month}-${day}`;
+                const dayData = daily.filter((item) => item.period === period);
                 const kwh = dayData.reduce((s, item) => s + numeric(item.energy_kwh), 0);
-                return {
-                  label: d.toLocaleDateString("es-CO", { weekday: "short" }),
-                  cost: Math.round(kwh * kwhRate),
-                  kwh,
-                };
+                return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate) };
               });
-              const weekTotal = weekDays.reduce((s, d) => s + d.kwh, 0);
-              const weekStart = monday.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
-              const weekEnd = new Date(monday);
-              weekEnd.setDate(monday.getDate() + 6);
-              const weekEndStr = weekEnd.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+              const monthTotal = days.reduce((s, d) => s + d.kwh, 0);
+              const avgDay = days.filter((d) => d.kwh > 0).reduce((s, d) => s + d.kwh, 0) / Math.max(1, days.filter((d) => d.kwh > 0).length);
               return (
                 <div className="space-y-2 text-sm">
-                  <div className="mb-3">
-                    <p className="text-3xl font-semibold text-brand">{weekTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-                    <p className="mt-1 text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(weekTotal * kwhRate))}</p>
+                  <div className="mb-3 flex items-baseline gap-4">
+                    <p className="text-3xl font-semibold text-brand">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
+                    <p className="text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(monthTotal * kwhRate))}</p>
+                    <p className="text-xs text-slate-400 ml-auto">Promedio: {avgDay.toFixed(2)} kWh/dia</p>
                   </div>
-                  <p className="text-xs text-slate-400">{weekStart} → {weekEndStr} · semana actual</p>
                   <Chart option={{
                     grid: { left: 42, right: 12, top: 12, bottom: 32 },
-                    xAxis: { type: "category", data: weekDays.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" } },
+                    xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.floor(days.length / 15) - 1) } },
                     yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                     series: [{
                       type: "bar",
-                      data: weekDays.map((d) => d.kwh),
+                      data: days.map((d) => d.kwh),
                       itemStyle: { color: "#0f766e" },
                     }],
                     tooltip: {
@@ -1114,7 +1061,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       formatter: (params: any) => {
                         const p = params[0];
                         const cost = Math.round(p.value * kwhRate);
-                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
+                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
                       },
                     },
                   }} />
