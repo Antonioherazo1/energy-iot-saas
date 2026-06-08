@@ -1082,6 +1082,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                         try {
                           const data = await recalculateDailyEnergy(token);
                           setDaily(data);
+                          await Promise.all([
+                            loadBillingData(),
+                            loadChannelDailyEnergy(),
+                          ]);
                         } catch { /* ignore */ }
                         setRecalculating(false);
                       }}
