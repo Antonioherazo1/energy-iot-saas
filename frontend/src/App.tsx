@@ -1040,10 +1040,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const kwh = dayData.reduce((s, item) => s + numeric(item.energy_kwh), 0);
                 const isPast = i + 1 < now.getDate();
                 const isToday = i + 1 === now.getDate();
-                const incomplete = isToday || (isPast && kwh === 0);
-                return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), incomplete };
+                const currentPeriod = isToday;
+                const incomplete = isPast && kwh === 0;
+                return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), incomplete, currentPeriod };
               });
-              const monthsIncomplete = days.some((d) => d.incomplete);
+              const hasIncomplete = days.some((d) => d.incomplete);
               const monthTotal = days.reduce((s, d) => s + d.kwh, 0);
               const avgDays = days.filter((d) => d.kwh > 0 && !d.incomplete);
               const avgDay = avgDays.length > 0 ? avgDays.reduce((s, d) => s + d.kwh, 0) / avgDays.length : 0;
@@ -1068,7 +1069,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       type="button"
                     >{recalculating ? "..." : "Recalcular"}</button>
                   </div>
-                  {monthsIncomplete && <p className="text-xs text-amber-600">{dailyWarn}</p>}
+                  {hasIncomplete && <p className="text-xs text-amber-600">{dailyWarn}</p>}
                   <Chart option={{
                     grid: { left: 42, right: 12, top: 12, bottom: 32 },
                     xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.floor(days.length / 15) - 1) } },
@@ -1076,11 +1077,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     series: [
                       {
                         type: "bar",
-                        data: days.map((d) => ({
-                          value: d.kwh,
-                          itemStyle: d.incomplete ? { color: "#d97706", opacity: 0.6 } : { color: "#0f766e" },
-                          emphasis: { itemStyle: d.incomplete ? { color: "#d97706", opacity: 0.8 } : { color: "#0f766e" } },
-                        })),
+                        data: days.map((d) => {
+                          if (d.incomplete) return { value: d.kwh, itemStyle: { color: "#d97706", opacity: 0.6 }, emphasis: { itemStyle: { color: "#d97706", opacity: 0.8 } } };
+                          if (d.currentPeriod) return { value: d.kwh, itemStyle: { color: "#0f766e", borderColor: "#0f766e", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#0f766e" } } };
+                          return { value: d.kwh, itemStyle: { color: "#0f766e" }, emphasis: { itemStyle: { color: "#0f766e" } } };
+                        }),
                       },
                       {
                         type: "scatter",
@@ -1099,8 +1100,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                         const p = params[0];
                         const cost = Math.round(p.value * kwhRate);
                         const dayInfo = days[Number(p.dataIndex)];
-                        const warn = dayInfo?.incomplete ? `<br/><span style="color:#d97706;font-size:11px;">${dailyWarn}</span>` : "";
-                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}${warn}`;
+                        let extra = "";
+                        if (dayInfo?.currentPeriod) extra = '<br/><span style="color:#0f766e;font-size:11px;">\u2022 Per\u00edodo actual</span>';
+                        else if (dayInfo?.incomplete) extra = `<br/><span style="color:#d97706;font-size:11px;">${dailyWarn}</span>`;
+                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}${extra}`;
                       },
                     },
                   }} />
@@ -1119,12 +1122,14 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const period = `${y}-${m}-01`;
                 const found = billingMonthly.find((item) => item.period === period);
                 const kwh = found ? numeric(found.energy_kwh) : 0;
-                const incomplete = period === currentMonthKey || (kwh === 0 && d < new Date(now.getFullYear(), now.getMonth(), 1));
+                const currentPeriod = period === currentMonthKey;
+                const incomplete = !currentPeriod && kwh === 0 && d < new Date(now.getFullYear(), now.getMonth(), 1);
                 return {
                   label: d.toLocaleDateString("es-CO", { month: "short" }),
                   kwh,
                   cost: Math.round(kwh * kwhRate),
                   incomplete,
+                  currentPeriod,
                 };
               });
               const total6 = months.reduce((s, m) => s + m.kwh, 0);
@@ -1143,11 +1148,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     series: [
                       {
                         type: "bar",
-                        data: months.map((m) => ({
-                          value: m.kwh,
-                          itemStyle: m.incomplete ? { color: "#d97706", opacity: 0.6 } : { color: "#2563eb" },
-                          emphasis: { itemStyle: m.incomplete ? { color: "#d97706", opacity: 0.8 } : { color: "#2563eb" } },
-                        })),
+                        data: months.map((m) => {
+                          if (m.incomplete) return { value: m.kwh, itemStyle: { color: "#d97706", opacity: 0.6 }, emphasis: { itemStyle: { color: "#d97706", opacity: 0.8 } } };
+                          if (m.currentPeriod) return { value: m.kwh, itemStyle: { color: "#2563eb", borderColor: "#2563eb", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#2563eb" } } };
+                          return { value: m.kwh, itemStyle: { color: "#2563eb" }, emphasis: { itemStyle: { color: "#2563eb" } } };
+                        }),
                       },
                       {
                         type: "scatter",
@@ -1166,8 +1171,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                         const p = params[0];
                         const cost = Math.round(p.value * kwhRate);
                         const monthInfo = months[Number(p.dataIndex)];
-                        const warn = monthInfo?.incomplete ? `<br/><span style="color:#d97706;font-size:11px;">${monthsWarn}</span>` : "";
-                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}${warn}`;
+                        let extra = "";
+                        if (monthInfo?.currentPeriod) extra = '<br/><span style="color:#2563eb;font-size:11px;">\u2022 Per\u00edodo actual</span>';
+                        else if (monthInfo?.incomplete) extra = `<br/><span style="color:#d97706;font-size:11px;">${monthsWarn}</span>`;
+                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}${extra}`;
                       },
                     },
                   }} />

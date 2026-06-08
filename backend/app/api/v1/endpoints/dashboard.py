@@ -62,7 +62,7 @@ def energy_daily(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    return get_energy_by_period(db=db, user=current_user, organization_id=organization_id, period="day", limit=limit)
+    return recalculate_daily_energy(db=db, user=current_user, days=limit, organization_id=organization_id)
 
 
 @router.get("/channels/latest")
