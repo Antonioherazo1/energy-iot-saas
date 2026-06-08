@@ -513,7 +513,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       }));
 
     return {
-      grid: { left: 56, right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: 24 + lsz(24, rowFontScales.chart) },
+      grid: { left: lsz(56, rowFontScales.chart), right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: lsz(96, rowFontScales.chart) },
       tooltip: { trigger: "axis" },
       legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
@@ -558,7 +558,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         };
       });
     return {
-      grid: { left: 56, right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: 24 + lsz(24, rowFontScales.chart) },
+      grid: { left: lsz(56, rowFontScales.chart), right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: lsz(96, rowFontScales.chart) },
       tooltip: { trigger: "axis" },
       legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
@@ -1126,48 +1126,56 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
           <Panel title="Periodo actual">
             {(() => {
-              const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
-              const periodCost = periodTotal * kwhRate;
-              const todayTotal = billingDaily.length > 0 ? numeric(billingDaily[billingDaily.length - 1].energy_kwh) : 0;
-              const todayCost = todayTotal * kwhRate;
               const now = new Date();
               const billingDate = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
               if (billingDate > now) billingDate.setMonth(billingDate.getMonth() - 1);
               const periodStart = billingDate.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               const todayStr = now.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               const daysInPeriod = Math.round((now.getTime() - billingDate.getTime()) / 86400000) + 1;
-              const avgDaily = daysInPeriod > 0 ? periodTotal / daysInPeriod : 0;
               const nextBillingDate = new Date(now.getFullYear(), now.getMonth() + 1, billingStartDay);
               const remainingDays = Math.round((nextBillingDate.getTime() - now.getTime()) / 86400000);
+
+              const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
+              const periodCost = periodTotal * kwhRate;
+              const todayTotal = billingDaily.length > 0 ? numeric(billingDaily[billingDaily.length - 1].energy_kwh) : 0;
+              const todayCost = todayTotal * kwhRate;
+              const avgDaily = daysInPeriod > 0 ? periodTotal / daysInPeriod : 0;
               const projectedTotal = periodTotal + avgDaily * remainingDays;
               const projectedCost = projectedTotal * kwhRate;
+              const remainingBudget = projectedTotal - periodTotal;
+              const remainingCost = remainingBudget * kwhRate;
+
+              const prevBilling = billingMonthly.length > 1 ? billingMonthly[billingMonthly.length - 2] : null;
+              const prevTotal = prevBilling ? numeric(prevBilling.energy_kwh) : 0;
+              const changePct = prevTotal > 0 ? ((periodTotal - prevTotal) / prevTotal * 100) : 0;
+
               return (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-3 text-sm">
                   <div>
                     <p className="text-3xl font-semibold text-accent">{periodTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-                    <p className="text-xs text-slate-400">Desde {periodStart} hasta {todayStr}</p>
+                    <p className="text-xs text-slate-400">Desde {periodStart} hasta {todayStr} · {daysInPeriod}d transcurridos, {remainingDays}d restantes</p>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-md border border-line bg-slate-50 p-3 text-xs">
-                    <div><span className="text-slate-500">Hoy</span><p className="font-semibold text-ink">$ {Intl.NumberFormat("es-CO").format(Math.round(todayCost))}</p></div>
-                    <div><span className="text-slate-500">Periodo</span><p className="font-semibold text-ink">$ {Intl.NumberFormat("es-CO").format(Math.round(periodCost))}</p></div>
-                    <div><span className="text-slate-500">Proyeccion mensual</span><p className="font-semibold text-ink">$ {Intl.NumberFormat("es-CO").format(Math.round(projectedCost))}</p></div>
-                    <div><span className="text-slate-500">Restan {remainingDays} dias</span><p className="font-semibold text-brand">$ {Intl.NumberFormat("es-CO").format(Math.round(projectedCost - periodCost))}</p></div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border border-line bg-slate-50 p-3 text-xs">
+                    <div className="flex justify-between"><span className="text-slate-500">Consumo hoy</span><span className="font-semibold">{todayTotal.toFixed(2)} kWh</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Costo hoy</span><span className="font-semibold">$ {Intl.NumberFormat("es-CO").format(Math.round(todayCost))}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Consumo periodo</span><span className="font-semibold">{periodTotal.toFixed(2)} kWh</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Costo periodo</span><span className="font-semibold">$ {Intl.NumberFormat("es-CO").format(Math.round(periodCost))}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Promedio diario</span><span className="font-semibold">{avgDaily.toFixed(2)} kWh/dia</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Costo promedio diario</span><span className="font-semibold">$ {Intl.NumberFormat("es-CO").format(Math.round(avgDaily * kwhRate))}/dia</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Proyeccion mensual</span><span className="font-semibold">{projectedTotal.toFixed(2)} kWh</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Proyeccion costo</span><span className="font-semibold">$ {Intl.NumberFormat("es-CO").format(Math.round(projectedCost))}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Restante presupuesto</span><span className="font-semibold text-brand">{remainingBudget.toFixed(2)} kWh</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Restante costo</span><span className="font-semibold text-brand">$ {Intl.NumberFormat("es-CO").format(Math.round(remainingCost))}</span></div>
+                    {prevTotal > 0 && (
+                      <>
+                        <div className="flex justify-between"><span className="text-slate-500">Periodo anterior</span><span className="font-semibold">{prevTotal.toFixed(2)} kWh</span></div>
+                        <div className={`flex justify-between ${changePct > 0 ? "text-red-600" : "text-green-600"}`}>
+                          <span className="text-slate-500">Variacion</span>
+                          <span className="font-semibold">{changePct > 0 ? "+" : ""}{changePct.toFixed(1)}%</span>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  {billingMonthly.length > 0 && (
-                    <div className="mt-3">
-                      <Chart option={{
-                        grid: { left: 42, right: 12, top: 12, bottom: 36 },
-                        xAxis: { type: "category", data: billingMonthly.slice().reverse().map((m) => {
-                          const d = new Date(m.period + "T00:00:00");
-                          d.setDate(d.getDate() + billingStartDay - 1);
-                          return d.toLocaleDateString("es-CO", { month: "short" });
-                        }), axisLabel: { rotate: 90, fontSize: lsz(11, rowFontScales.chart), color: "#526071" } },
-                        yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
-                        series: [{ type: "bar", data: billingMonthly.slice().reverse().map((m) => numeric(m.energy_kwh)), itemStyle: { color: "#2563eb" } }],
-                        tooltip: { trigger: "axis" },
-                      }} />
-                    </div>
-                  )}
                 </div>
               );
             })()}
