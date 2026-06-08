@@ -1148,6 +1148,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     series: [
                       {
                         type: "bar",
+                        barMinHeight: 4,
                         data: months.map((m) => {
                           if (m.incomplete) return { value: m.kwh, itemStyle: { color: "#d97706", opacity: 0.6 }, emphasis: { itemStyle: { color: "#d97706", opacity: 0.8 } } };
                           if (m.currentPeriod) return { value: m.kwh, itemStyle: { color: "#2563eb", borderColor: "#2563eb", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#2563eb" } } };
