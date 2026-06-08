@@ -1044,7 +1044,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const year = now.getFullYear();
               const month = String(now.getMonth() + 1).padStart(2, "0");
               const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
-              const maxRecords = Math.max(0, ...daily.filter((d) => d.record_count != null).map((d) => d.record_count!));
+              const hasRecords = daily.some((d) => d.record_count != null);
+              const maxRecords = hasRecords ? Math.max(0, ...daily.filter((d) => d.record_count != null).map((d) => d.record_count!)) : 0;
               const days = Array.from({ length: daysInMonth }, (_, i) => {
                 const day = String(i + 1).padStart(2, "0");
                 const period = `${year}-${month}-${day}`;
@@ -1054,14 +1055,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const isPast = i + 1 < now.getDate();
                 const isToday = i + 1 === now.getDate();
                 const currentPeriod = isToday;
-                const incomplete = isPast && (recordCount === 0 || (maxRecords > 0 && recordCount < maxRecords * 0.7));
+                const incomplete = isPast && (hasRecords ? (recordCount === 0 || recordCount < maxRecords * 0.5) : kwh === 0);
                 return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), incomplete, currentPeriod };
               });
               const hasIncomplete = days.some((d) => d.incomplete);
               const monthTotal = days.reduce((s, d) => s + d.kwh, 0);
               const avgDays = days.filter((d) => d.kwh > 0 && !d.incomplete);
               const avgDay = avgDays.length > 0 ? avgDays.reduce((s, d) => s + d.kwh, 0) / avgDays.length : 0;
-              const dailyWarn = "⚠ Este per\u00edodo no se tiene en cuenta en el promediado debido a que no tiene registros completos";
               return (
                 <div className="space-y-2 text-sm">
                   <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -1082,7 +1082,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       type="button"
                     >{recalculating ? "..." : "Recalcular"}</button>
                   </div>
-                  {hasIncomplete && <p className="text-xs text-amber-600">{dailyWarn}</p>}
+                  {hasIncomplete && (
+                    <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-2">
+                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#d97706", opacity: 0.6 }} /> Incompleto (excluido)</span>
+                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#0f766e" }} /> Completo</span>
+                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#0f766e", background: "transparent" }} /> Per\u00edodo actual</span>
+                    </div>
+                  )}
                   <Chart option={{
                     grid: { left: 42, right: 12, top: 12, bottom: 32 },
                     xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.floor(days.length / 15) - 1) } },
@@ -1112,11 +1118,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       formatter: (params: any) => {
                         const p = params[0];
                         const cost = Math.round(p.value * kwhRate);
-                        const dayInfo = days[Number(p.dataIndex)];
-                        let extra = "";
-                        if (dayInfo?.currentPeriod) extra = '<br/><span style="color:#0f766e;font-size:11px;">\u2022 Per\u00edodo actual</span>';
-                        else if (dayInfo?.incomplete) extra = `<br/><span style="color:#d97706;font-size:11px;">${dailyWarn}</span>`;
-                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}${extra}`;
+                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
                       },
                     },
                   }} />
