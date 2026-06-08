@@ -888,7 +888,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                           <p className="text-4xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(decimals.power)}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-xs text-slate-400">COP/h <span className="text-[10px] text-slate-300">instantáneo</span></p>
+                          <p className="text-xs text-slate-400">COP/h</p>
+                          <p className="text-[10px] leading-none text-slate-300">instantáneo</p>
                           <p className="text-4xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
                         </div>
                       </div>
