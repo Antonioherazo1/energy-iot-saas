@@ -1091,8 +1091,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   {hasIncomplete && (
                     <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-2">
                       <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#d97706", opacity: 0.6 }} /> Incompleto (excluido)</span>
-                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#0f766e" }} /> Completo</span>
-                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#0f766e", background: "transparent" }} /> Per\u00edodo actual</span>
+                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#2563eb" }} /> Completo</span>
+                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#2563eb", background: "transparent" }} /> Per\u00edodo actual</span>
                     </div>
                   )}
                   <Chart option={{
@@ -1102,10 +1102,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     series: [
                       {
                         type: "bar",
+                        barMinHeight: 4,
                         data: days.map((d) => {
                           if (d.incomplete) return { value: d.kwh, itemStyle: { color: "#d97706", opacity: 0.6 }, emphasis: { itemStyle: { color: "#d97706", opacity: 0.8 } } };
-                          if (d.currentPeriod) return { value: d.kwh, itemStyle: { color: "#0f766e", borderColor: "#0f766e", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#0f766e" } } };
-                          return { value: d.kwh, itemStyle: { color: "#0f766e" }, emphasis: { itemStyle: { color: "#0f766e" } } };
+                          if (d.currentPeriod) return { value: d.kwh, itemStyle: { color: "#2563eb", borderColor: "#2563eb", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#2563eb" } } };
+                          return { value: d.kwh, itemStyle: { color: "#2563eb" }, emphasis: { itemStyle: { color: "#2563eb" } } };
                         }),
                       },
                       {
