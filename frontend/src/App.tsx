@@ -57,6 +57,20 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function getEnergyKwh(channelNumber: number, channelDailyEnergy: { channel_number: number; energy_kwh: string }[], latest: LatestTelemetry[], selectedDeviceId: string | null, energyBaseline: React.MutableRefObject<Record<number, number>>): number {
+  const chData = channelDailyEnergy.find((d) => d.channel_number === channelNumber);
+  const baseEnergy = chData ? numeric(chData.energy_kwh) : 0;
+  const lt = latest.find((l) => l.device_id === selectedDeviceId);
+  if (!lt) return baseEnergy;
+  const key = `ch${channelNumber}_energy_kwh` as keyof LatestTelemetry;
+  const currentAccum = lt[key];
+  if (currentAccum === null) return baseEnergy;
+  const baseline = energyBaseline.current[channelNumber];
+  if (baseline === undefined) return baseEnergy;
+  const delta = numeric(currentAccum) - baseline;
+  return Math.max(0, baseEnergy + delta);
+}
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? "");
   const [email, setEmail] = useState("");
@@ -102,6 +116,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [billingDaily, setBillingDaily] = useState<EnergyBucket[]>([]);
   const [billingMonthly, setBillingMonthly] = useState<EnergyBucket[]>([]);
   const [channelDailyEnergy, setChannelDailyEnergy] = useState<{ channel_number: number; energy_kwh: string }[]>([]);
+  const energyBaseline = useRef<Record<number, number>>({});
   const [channelHourFrom, setChannelHourFrom] = useState(0);
   const [channelHourTo, setChannelHourTo] = useState(() => Math.max(1, Math.min(24, new Date().getHours() + 1)));
   const [configChannels, setConfigChannels] = useState<DeviceChannel[]>([]);
@@ -447,6 +462,16 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     try {
       const data = await getBillingDailyChannels(token, selectedDeviceId);
       setChannelDailyEnergy(data);
+      const lt = latest.find((l) => l.device_id === selectedDeviceId);
+      if (lt) {
+        const baseline: Record<number, number> = {};
+        data.forEach((d) => {
+          const key = `ch${d.channel_number}_energy_kwh` as keyof LatestTelemetry;
+          const val = lt[key];
+          if (val !== null) baseline[d.channel_number] = numeric(val);
+        });
+        energyBaseline.current = baseline;
+      }
     } catch {
       // ignore
     }
@@ -916,24 +941,24 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="mb-1 text-sm font-medium text-slate-500">Energia del dia</p>
                 {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
-                  const chData = channelDailyEnergy.find((d) => d.channel_number === ch.channel_number);
+                  const energy = getEnergyKwh(ch.channel_number, channelDailyEnergy, latest, selectedDeviceId, energyBaseline);
                   return (
                     <div className="flex justify-between text-sm" key={ch.id}>
                       <span className="text-slate-500">{ch.name}</span>
-                      <span className="font-semibold">{chData ? numeric(chData.energy_kwh).toFixed(2) : "0.00"} kWh</span>
+                      <span className="font-semibold">{energy.toFixed(2)} kWh</span>
                     </div>
                   );
                 })}
                 <div className="mt-2 flex justify-between border-t border-line pt-2 text-sm font-bold">
                   <span>Total</span>
-                  <span>{channelDailyEnergy.reduce((s, d) => s + numeric(d.energy_kwh), 0).toFixed(2)} kWh</span>
+                  <span>{deviceChannels.filter((ch) => ch.is_active).reduce((s, ch) => s + getEnergyKwh(ch.channel_number, channelDailyEnergy, latest, selectedDeviceId, energyBaseline), 0).toFixed(2)} kWh</span>
                 </div>
               </div>
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="mb-1 text-sm font-medium text-slate-500">Costo del dia</p>
                 {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
-                  const chData = channelDailyEnergy.find((d) => d.channel_number === ch.channel_number);
-                  const chCost = chData ? numeric(chData.energy_kwh) * kwhRate : 0;
+                  const energy = getEnergyKwh(ch.channel_number, channelDailyEnergy, latest, selectedDeviceId, energyBaseline);
+                  const chCost = energy * kwhRate;
                   return (
                     <div className="flex justify-between text-sm" key={ch.id}>
                       <span className="text-slate-500">{ch.name}</span>
@@ -943,7 +968,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 })}
                 <div className="mt-2 flex justify-between border-t border-line pt-2 text-sm font-bold">
                   <span>Total</span>
-                  <span>$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(channelDailyEnergy.reduce((s, d) => s + numeric(d.energy_kwh), 0) * kwhRate)}</span>
+                  <span>$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(deviceChannels.filter((ch) => ch.is_active).reduce((s, ch) => s + getEnergyKwh(ch.channel_number, channelDailyEnergy, latest, selectedDeviceId, energyBaseline), 0) * kwhRate)}</span>
                 </div>
               </div>
             </div>
