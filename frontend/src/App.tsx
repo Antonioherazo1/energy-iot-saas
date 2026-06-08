@@ -928,10 +928,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
 
             {/* Row 2: Total power, daily energy & cost */}
-            <div style={{ zoom: rowFontScales.row2 / 100 }} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[45%_27.5%_27.5%]">
-              <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+            <div style={{ zoom: rowFontScales.row2 / 100 }} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[45%_27.5%_27.5%] min-w-0">
+              <div className="min-w-0 rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="text-sm font-medium text-slate-500">Potencia total <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" /></p>
-                <div className="mt-1 flex items-baseline gap-6">
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                   <p className="text-4xl font-bold text-ink">
                     {deviceChannels.filter((ch) => ch.is_active).reduce((sum, ch) => {
                       const lt = latest.find((l) => l.device_id === selectedDeviceId);
@@ -951,7 +951,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 </div>
                 <p className="mt-2 text-sm text-slate-400">Tarifa: $ {Intl.NumberFormat("es-CO").format(kwhRate)} / kWh</p>
               </div>
-              <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+              <div className="min-w-0 rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="mb-1 text-sm font-medium text-slate-500">Energia del dia</p>
                 {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
                   const energy = getEnergyKwh(ch.channel_number, channelDailyEnergy, latest, selectedDeviceId, energyBaseline);
@@ -967,7 +967,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   <span>{deviceChannels.filter((ch) => ch.is_active).reduce((s, ch) => s + getEnergyKwh(ch.channel_number, channelDailyEnergy, latest, selectedDeviceId, energyBaseline), 0).toFixed(2)} kWh</span>
                 </div>
               </div>
-              <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+              <div className="min-w-0 rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="mb-1 text-sm font-medium text-slate-500">Costo del dia</p>
                 {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
                   const energy = getEnergyKwh(ch.channel_number, channelDailyEnergy, latest, selectedDeviceId, energyBaseline);
@@ -1064,7 +1064,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const dailyWarn = "⚠ Este per\u00edodo no se tiene en cuenta en el promediado debido a que no tiene registros completos";
               return (
                 <div className="space-y-2 text-sm">
-                  <div className="mb-3 flex items-baseline gap-4">
+                  <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                     <p className="text-3xl font-semibold text-brand">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
                     <p className="text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(monthTotal * kwhRate))}</p>
                     <p className="text-xs text-slate-400 ml-auto">Promedio: {avgDay.toFixed(2)} kWh/dia</p>
