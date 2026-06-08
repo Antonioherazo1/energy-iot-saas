@@ -280,6 +280,12 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     setError("");
     try {
       const createdDevice = await createDevice(token, organizationId, createDeviceName.trim(), createDeviceCode.trim());
+      await setupChannels(token, createdDevice.id, [
+        { channel_number: 1, name: "Canal 1", voltage: 110 },
+        { channel_number: 2, name: "Canal 2", voltage: 110 },
+        { channel_number: 3, name: "Canal 3", voltage: 110 },
+        { channel_number: 4, name: "Canal 4", voltage: 110 },
+      ]);
       setCreateDeviceName("");
       setCreateDeviceCode("");
       setNewDeviceCode(createdDevice.code);
@@ -1331,33 +1337,59 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
           <section className="mx-4 w-full max-w-lg rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Configurar canales</h2>
-            <div className="space-y-3">
-              {configChannels.map((ch, i) => (
-                <div className="flex items-center gap-3" key={ch.channel_number}>
-                  <input type="checkbox" className="h-5 w-5 accent-brand" checked={ch.is_active} onChange={() => { const next = [...configChannels]; next[i] = { ...next[i], is_active: !next[i].is_active }; setConfigChannels(next); }} />
-                  <span className="w-20 text-sm text-slate-500">Canal {ch.channel_number}</span>
-                  <input className="flex-1 h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand" value={ch.name} onChange={(e) => { const next = [...configChannels]; next[i] = { ...next[i], name: e.target.value }; setConfigChannels(next); }} />
-                  <select className="h-10 w-24 rounded-md border border-line px-2 text-sm outline-none focus:border-brand" value={ch.voltage} onChange={(e) => { const next = [...configChannels]; next[i] = { ...next[i], voltage: Number(e.target.value) }; setConfigChannels(next); }}>
-                    <option value={110}>110 V</option>
-                    <option value={220}>220 V</option>
-                  </select>
-                </div>
-              ))}
-            </div>
-            {error ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-            <div className="mt-4 flex gap-3">
-              <button className="flex-1 h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cancelar</button>
-              <button className="flex-1 h-11 rounded-md bg-brand text-sm font-medium text-white disabled:opacity-60" disabled={savingChannels} onClick={async () => {
-                if (!token || !selectedDeviceId) return;
-                setSavingChannels(true); setError("");
-                try {
-                  await Promise.all(configChannels.map((ch) => updateChannel(token, selectedDeviceId, ch.channel_number, { name: ch.name, voltage: ch.voltage, is_active: ch.is_active })));
-                  setSideSection(null);
-                  await loadDeviceChannels(selectedDeviceId);
-                } catch (err) { setError(err instanceof Error ? err.message : "Error al guardar"); }
-                finally { setSavingChannels(false); }
-              }} type="button">{savingChannels ? "Guardando..." : "Guardar"}</button>
-            </div>
+            {configChannels.length === 0 ? (
+              <p className="mb-4 text-sm text-slate-500">
+                No hay canales configurados.
+                <button className="ml-2 text-brand underline" onClick={async () => {
+                  if (!token || !selectedDeviceId) return;
+                  setSavingChannels(true);
+                  try {
+                    await setupChannels(token, selectedDeviceId, [
+                      { channel_number: 1, name: "Canal 1", voltage: 110 },
+                      { channel_number: 2, name: "Canal 2", voltage: 110 },
+                      { channel_number: 3, name: "Canal 3", voltage: 110 },
+                      { channel_number: 4, name: "Canal 4", voltage: 110 },
+                    ]);
+                    await loadDeviceChannels(selectedDeviceId);
+                    setSideSection(null);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Error al crear canales");
+                  } finally {
+                    setSavingChannels(false);
+                  }
+                }} type="button">Crear canales por defecto</button>
+              </p>
+            ) : (
+              <>
+              <div className="space-y-3">
+                {configChannels.map((ch, i) => (
+                  <div className="flex items-center gap-3" key={ch.channel_number}>
+                    <input type="checkbox" className="h-5 w-5 accent-brand" checked={ch.is_active} onChange={() => { const next = [...configChannels]; next[i] = { ...next[i], is_active: !next[i].is_active }; setConfigChannels(next); }} />
+                    <span className="w-20 text-sm text-slate-500">Canal {ch.channel_number}</span>
+                    <input className="flex-1 h-10 rounded-md border border-line px-3 text-sm outline-none focus:border-brand" value={ch.name} onChange={(e) => { const next = [...configChannels]; next[i] = { ...next[i], name: e.target.value }; setConfigChannels(next); }} />
+                    <select className="h-10 w-24 rounded-md border border-line px-2 text-sm outline-none focus:border-brand" value={ch.voltage} onChange={(e) => { const next = [...configChannels]; next[i] = { ...next[i], voltage: Number(e.target.value) }; setConfigChannels(next); }}>
+                      <option value={110}>110 V</option>
+                      <option value={220}>220 V</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {error ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+              <div className="mt-4 flex gap-3">
+                <button className="flex-1 h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cancelar</button>
+                <button className="flex-1 h-11 rounded-md bg-brand text-sm font-medium text-white disabled:opacity-60" disabled={savingChannels} onClick={async () => {
+                  if (!token || !selectedDeviceId) return;
+                  setSavingChannels(true); setError("");
+                  try {
+                    await Promise.all(configChannels.map((ch) => updateChannel(token, selectedDeviceId, ch.channel_number, { name: ch.name, voltage: ch.voltage, is_active: ch.is_active })));
+                    setSideSection(null);
+                    await loadDeviceChannels(selectedDeviceId);
+                  } catch (err) { setError(err instanceof Error ? err.message : "Error al guardar"); }
+                  finally { setSavingChannels(false); }
+                }} type="button">{savingChannels ? "Guardando..." : "Guardar"}</button>
+              </div>
+              </>
+            )}
           </section>
         </div>
       )}
