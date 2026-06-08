@@ -487,7 +487,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       }));
 
     return {
-      grid: { left: 56, right: 16, top: 48, bottom: 72 },
+      grid: { left: 56, right: 16, top: 24 + lsz(24, rowFontScales.chart), bottom: 36 + lsz(36, rowFontScales.chart) },
       tooltip: { trigger: "axis" },
       legend: { bottom: 4, textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
@@ -532,7 +532,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         };
       });
     return {
-      grid: { left: 56, right: 16, top: 48, bottom: 72 },
+      grid: { left: 56, right: 16, top: 24 + lsz(24, rowFontScales.chart), bottom: 36 + lsz(36, rowFontScales.chart) },
       tooltip: { trigger: "axis" },
       legend: { bottom: 4, textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
@@ -1008,7 +1008,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const weekDays = Array.from({ length: 7 }, (_, i) => {
                 const d = new Date(monday);
                 d.setDate(monday.getDate() + i);
-                const dateStr = d.toISOString().split("T")[0];
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
                 const dayData = daily.filter((item) => item.period === dateStr);
                 const kwh = dayData.reduce((s, item) => s + numeric(item.energy_kwh), 0);
                 return {
