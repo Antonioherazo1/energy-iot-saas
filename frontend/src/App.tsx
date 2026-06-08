@@ -40,7 +40,7 @@ function numeric(value: string | null | undefined): number {
   return Number(value ?? 0);
 }
 
-
+const lsz = (base: number, scale: number) => Math.round(base * scale / 100);
 
 function formatNumber(value: string | number | null | undefined, suffix = "") {
   const number = Number(value ?? 0);
@@ -115,17 +115,16 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     const saved = localStorage.getItem("kwh_rate");
     return saved ? Number(saved) : 800;
   });
-  const [fontScale, setFontScale] = useState(() => {
-    const saved = localStorage.getItem("font_scale");
-    return saved ? Number(saved) : 100;
+  const [rowFontScales, setRowFontScales] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem("row_font_scales");
+    return saved ? JSON.parse(saved) : { row1: 100, row2: 100, row3: 100, row4: 100, row5: 100, row6: 100, chart: 100 };
   });
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
 
   useEffect(() => {
-    document.documentElement.style.fontSize = fontScale + "%";
-    localStorage.setItem("font_scale", String(fontScale));
-  }, [fontScale]);
+    localStorage.setItem("row_font_scales", JSON.stringify(rowFontScales));
+  }, [rowFontScales]);
 
   async function loadDashboard(activeToken = token) {
     if (!activeToken) {
@@ -483,13 +482,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     return {
       grid: { left: 56, right: 16, top: 48, bottom: 72 },
       tooltip: { trigger: "axis" },
-      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: 12 }, icon: "circle" },
+      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
         type: "category",
         data: times,
         axisLabel: {
           color: "#526071",
-          fontSize: 11,
+          fontSize: lsz(11, rowFontScales.chart),
           rotate: 90,
           showMaxLabel: true,
           interval: Math.max(1, Math.floor(times.length / 24)),
@@ -498,13 +497,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       yAxis: {
         type: "value",
         name: "Amperios",
-        nameTextStyle: { fontSize: 12 },
-        axisLabel: { color: "#526071", fontSize: 11 },
+        nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
+        axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
         splitLine: { lineStyle: { color: "#e4e8ef" } },
       },
       series,
     };
-  }, [channelData, daySeries, deviceChannels, channelHourFrom, channelHourTo]);
+  }, [channelData, daySeries, deviceChannels, channelHourFrom, channelHourTo, rowFontScales]);
 
   const realtimeCurrentOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
@@ -528,13 +527,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     return {
       grid: { left: 56, right: 16, top: 48, bottom: 72 },
       tooltip: { trigger: "axis" },
-      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: 12 }, icon: "circle" },
+      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
         type: "category",
         data: times,
         axisLabel: {
           color: "#526071",
-          fontSize: 11,
+          fontSize: lsz(11, rowFontScales.chart),
           rotate: 90,
           showMaxLabel: true,
           interval: Math.max(1, Math.floor(times.length / 24)),
@@ -543,13 +542,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       yAxis: {
         type: "value",
         name: "Amperios",
-        nameTextStyle: { fontSize: 12 },
-        axisLabel: { color: "#526071", fontSize: 11 },
+        nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
+        axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
         splitLine: { lineStyle: { color: "#e4e8ef" } },
       },
       series,
     };
-  }, [currentBuffer, deviceChannels]);
+  }, [currentBuffer, deviceChannels, rowFontScales]);
 
   if (!token || !user || (onboardingStep === 0 && user === null)) {
     const signingUp = authMode === "signup";
@@ -860,7 +859,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         {selectedDeviceId && deviceChannels.length > 0 ? (
           <>
             {/* Row 1: Phase cards with current, power, cost rate */}
-            <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+            <div style={{ zoom: rowFontScales.row1 / 100 }} className="rounded-lg border border-line bg-white p-4 shadow-sm">
               <div className="flex flex-wrap gap-3">
                 {deviceChannels.filter((ch) => ch.is_active).map((ch) => {
                   const lt = latest.find((l) => l.device_id === selectedDeviceId);
@@ -892,7 +891,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
 
             {/* Row 2: Total power, daily energy & cost */}
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div style={{ zoom: rowFontScales.row2 / 100 }} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="text-sm font-medium text-slate-500">Potencia total <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" /></p>
                 <p className="mt-1 text-4xl font-bold text-ink">
@@ -940,8 +939,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
           </>
         ) : null}
-
-        <div className="mt-4 overflow-x-auto">
+        <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-4 overflow-x-auto">
             <Panel title="Corriente por canal (A) - Tiempo real">
               {currentBuffer.length === 0 ? (
                 bufferLoading ? (
@@ -970,7 +968,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </Panel>
           </div>
 
-        <div className="mt-6 overflow-x-auto">
+        <div style={{ zoom: rowFontScales.row4 / 100 }} className="mt-6 overflow-x-auto">
           <Panel title="Corriente por canal (A) - Histórico">
             <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
               <label className="flex items-center gap-1">
@@ -990,8 +988,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             <Chart option={channelsOption} />
           </Panel>
         </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Panel title="Consumo del período">
             {(() => {
               const now = new Date();
@@ -1025,8 +1022,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   <p className="text-xs text-slate-400">{weekStart} → {weekEndStr} · semana actual</p>
                   <Chart option={{
                     grid: { left: 42, right: 12, top: 12, bottom: 32 },
-                    xAxis: { type: "category", data: weekDays.map((d) => d.label), axisLabel: { fontSize: 11, color: "#526071" } },
-                    yAxis: { type: "value", axisLabel: { fontSize: 11, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                    xAxis: { type: "category", data: weekDays.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" } },
+                    yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                     series: [{
                       type: "bar",
                       data: weekDays.map((d) => d.kwh),
@@ -1071,8 +1068,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   <p className="text-xs text-slate-400">Ultimos 6 meses</p>
                   <Chart option={{
                     grid: { left: 56, right: 12, top: 12, bottom: 36 },
-                    xAxis: { type: "category", data: months.map((m) => m.label), axisLabel: { rotate: 90, fontSize: 11, color: "#526071" } },
-                    yAxis: { type: "value", axisLabel: { fontSize: 11, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                    xAxis: { type: "category", data: months.map((m) => m.label), axisLabel: { rotate: 90, fontSize: lsz(11, rowFontScales.chart), color: "#526071" } },
+                    yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                     series: [{
                       type: "bar",
                       data: months.map((m) => m.kwh),
@@ -1128,8 +1125,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                           const d = new Date(m.period + "T00:00:00");
                           d.setDate(d.getDate() + billingStartDay - 1);
                           return d.toLocaleDateString("es-CO", { month: "short" });
-                        }), axisLabel: { rotate: 90, fontSize: 11, color: "#526071" } },
-                        yAxis: { type: "value", axisLabel: { fontSize: 11, color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                        }), axisLabel: { rotate: 90, fontSize: lsz(11, rowFontScales.chart), color: "#526071" } },
+                        yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                         series: [{ type: "bar", data: billingMonthly.slice().reverse().map((m) => numeric(m.energy_kwh)), itemStyle: { color: "#2563eb" } }],
                         tooltip: { trigger: "axis" },
                       }} />
@@ -1141,7 +1138,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </Panel>
         </div>
 
-        <div className="mt-6">
+        <div style={{ zoom: rowFontScales.row6 / 100 }} className="mt-6">
           <Panel title="Estado de dispositivos">
             {newDeviceKey ? (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1336,26 +1333,28 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       {/* Overlay: Factor de fuente */}
       {sideSection === "font-scale" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
-          <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+          <section className="mx-4 w-full max-w-md rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Factor de fuente</h2>
-            <p className="mb-3 text-sm text-slate-500">Ajusta el tamaño de la fuente de toda la pagina</p>
-            <div className="flex flex-wrap gap-2">
-              {[80, 90, 100, 110, 120, 130, 140].map((pct) => (
-                <button
-                  key={pct}
-                  className={`flex-1 min-w-[60px] h-11 rounded-md text-sm font-medium transition-colors ${
-                    fontScale === pct
-                      ? "bg-brand text-white"
-                      : "border border-line bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                  onClick={() => setFontScale(pct)}
-                  type="button"
-                >
-                  {pct}%
-                </button>
+            <p className="mb-4 text-sm text-slate-500">Ajusta el tamaño de fuente de cada fila y las etiquetas de las graficas</p>
+            <div className="space-y-4">
+              {[
+                { key: "row1", label: "Tarjetas de fase" },
+                { key: "row2", label: "Potencia, energia, costo" },
+                { key: "row3", label: "Tiempo real" },
+                { key: "row4", label: "Historico" },
+                { key: "row5", label: "Facturacion" },
+                { key: "row6", label: "Estado dispositivos" },
+                { key: "chart", label: "Etiquetas de graficas" },
+              ].map(({ key, label }) => (
+                <div className="flex items-center gap-3" key={key}>
+                  <span className="min-w-[140px] text-sm text-slate-600">{label}</span>
+                  <button className="h-9 w-9 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={rowFontScales[key] <= 60} onClick={() => setRowFontScales((prev: Record<string, number>) => ({ ...prev, [key]: Math.max(60, prev[key] - 10) }))} type="button">−</button>
+                  <span className="w-12 text-center text-sm font-semibold">{rowFontScales[key]}%</span>
+                  <button className="h-9 w-9 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={rowFontScales[key] >= 200} onClick={() => setRowFontScales((prev: Record<string, number>) => ({ ...prev, [key]: Math.min(200, prev[key] + 10) }))} type="button">+</button>
+                </div>
               ))}
             </div>
-            <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
+            <button className="mt-6 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
       )}
