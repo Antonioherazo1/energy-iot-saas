@@ -142,15 +142,15 @@ def get_energy_by_period(
 
     rows = db.execute(
         select(
-            per_device_period.c.period,
-            func.coalesce(func.sum(per_device_period.c.energy_kwh), 0).label("energy_kwh"),
+            cte.c.period,
+            func.coalesce(func.sum(case((cte.c.energy_delta > 0, cte.c.energy_delta), else_=0)), 0).label("energy_kwh"),
+            func.count().label("record_count"),
         )
-        .group_by(per_device_period.c.period)
-        .order_by(desc(per_device_period.c.period))
-        .limit(safe_limit)
+        .group_by(cte.c.period)
+        .order_by(cte.c.period)
     )
     return [
-        {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0")}
+        {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0"), "record_count": row.record_count}
         for row in rows
     ]
 

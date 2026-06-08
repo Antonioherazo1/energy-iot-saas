@@ -1033,15 +1033,17 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const year = now.getFullYear();
               const month = String(now.getMonth() + 1).padStart(2, "0");
               const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+              const maxRecords = Math.max(0, ...daily.filter((d) => d.record_count != null).map((d) => d.record_count!));
               const days = Array.from({ length: daysInMonth }, (_, i) => {
                 const day = String(i + 1).padStart(2, "0");
                 const period = `${year}-${month}-${day}`;
                 const dayData = daily.filter((item) => item.period === period);
                 const kwh = dayData.reduce((s, item) => s + numeric(item.energy_kwh), 0);
+                const recordCount = dayData.reduce((s, item) => s + (item.record_count ?? 0), 0);
                 const isPast = i + 1 < now.getDate();
                 const isToday = i + 1 === now.getDate();
                 const currentPeriod = isToday;
-                const incomplete = isPast && kwh === 0;
+                const incomplete = isPast && (recordCount === 0 || (maxRecords > 0 && recordCount < maxRecords * 0.7));
                 return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), incomplete, currentPeriod };
               });
               const hasIncomplete = days.some((d) => d.incomplete);

@@ -38,6 +38,7 @@ class LatestTelemetryRead(BaseModel):
 class EnergyBucketRead(BaseModel):
     period: date
     energy_kwh: Decimal
+    record_count: int = 0
 
 
 class DashboardSummaryRead(BaseModel):

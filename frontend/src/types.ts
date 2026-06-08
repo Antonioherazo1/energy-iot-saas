@@ -82,4 +82,5 @@ export type DeviceChannel = {
 export type EnergyBucket = {
   period: string;
   energy_kwh: string;
+  record_count?: number;
 };
