@@ -1038,10 +1038,16 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const period = `${year}-${month}-${day}`;
                 const dayData = daily.filter((item) => item.period === period);
                 const kwh = dayData.reduce((s, item) => s + numeric(item.energy_kwh), 0);
-                return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate) };
+                const isPast = i + 1 < now.getDate();
+                const isToday = i + 1 === now.getDate();
+                const incomplete = isToday || (isPast && kwh === 0);
+                return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), incomplete };
               });
+              const monthsIncomplete = days.some((d) => d.incomplete);
               const monthTotal = days.reduce((s, d) => s + d.kwh, 0);
-              const avgDay = days.filter((d) => d.kwh > 0).reduce((s, d) => s + d.kwh, 0) / Math.max(1, days.filter((d) => d.kwh > 0).length);
+              const avgDays = days.filter((d) => d.kwh > 0 && !d.incomplete);
+              const avgDay = avgDays.length > 0 ? avgDays.reduce((s, d) => s + d.kwh, 0) / avgDays.length : 0;
+              const dailyWarn = "⚠ Este per\u00edodo no se tiene en cuenta en el promediado debido a que no tiene registros completos";
               return (
                 <div className="space-y-2 text-sm">
                   <div className="mb-3 flex items-baseline gap-4">
@@ -1062,21 +1068,39 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       type="button"
                     >{recalculating ? "..." : "Recalcular"}</button>
                   </div>
+                  {monthsIncomplete && <p className="text-xs text-amber-600">{dailyWarn}</p>}
                   <Chart option={{
                     grid: { left: 42, right: 12, top: 12, bottom: 32 },
                     xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.floor(days.length / 15) - 1) } },
                     yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
-                    series: [{
-                      type: "bar",
-                      data: days.map((d) => d.kwh),
-                      itemStyle: { color: "#0f766e" },
-                    }],
+                    series: [
+                      {
+                        type: "bar",
+                        data: days.map((d) => ({
+                          value: d.kwh,
+                          itemStyle: d.incomplete ? { color: "#d97706", opacity: 0.6 } : { color: "#0f766e" },
+                          emphasis: { itemStyle: d.incomplete ? { color: "#d97706", opacity: 0.8 } : { color: "#0f766e" } },
+                        })),
+                      },
+                      {
+                        type: "scatter",
+                        data: days.filter((d) => d.incomplete).map((d) => [d.label, d.kwh + Math.max(d.kwh * 0.08, 0.3)]),
+                        symbol: "path://M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
+                        symbolSize: 18,
+                        itemStyle: { color: "#d97706" },
+                        label: { show: true, formatter: "!", fontSize: 11, color: "#fff", fontWeight: "bold" },
+                        emphasis: { scale: 1.4 },
+                        z: 10,
+                      },
+                    ],
                     tooltip: {
                       trigger: "axis",
                       formatter: (params: any) => {
                         const p = params[0];
                         const cost = Math.round(p.value * kwhRate);
-                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
+                        const dayInfo = days[Number(p.dataIndex)];
+                        const warn = dayInfo?.incomplete ? `<br/><span style="color:#d97706;font-size:11px;">${dailyWarn}</span>` : "";
+                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}${warn}`;
                       },
                     },
                   }} />
@@ -1087,6 +1111,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           <Panel title="Comparativo mensual">
             {(() => {
               const now = new Date();
+              const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
               const months = Array.from({ length: 6 }, (_, i) => {
                 const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
                 const y = d.getFullYear();
@@ -1094,13 +1119,16 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const period = `${y}-${m}-01`;
                 const found = billingMonthly.find((item) => item.period === period);
                 const kwh = found ? numeric(found.energy_kwh) : 0;
+                const incomplete = period === currentMonthKey || (kwh === 0 && d < new Date(now.getFullYear(), now.getMonth(), 1));
                 return {
                   label: d.toLocaleDateString("es-CO", { month: "short" }),
                   kwh,
                   cost: Math.round(kwh * kwhRate),
+                  incomplete,
                 };
               });
               const total6 = months.reduce((s, m) => s + m.kwh, 0);
+              const monthsWarn = "⚠ Este per\u00edodo no se tiene en cuenta en el promediado debido a que no tiene registros completos";
               return (
                 <div className="space-y-2 text-sm">
                   <div className="mb-3">
@@ -1112,17 +1140,34 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     grid: { left: 56, right: 12, top: 12, bottom: 36 },
                     xAxis: { type: "category", data: months.map((m) => m.label), axisLabel: { rotate: 90, fontSize: lsz(11, rowFontScales.chart), color: "#526071" } },
                     yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
-                    series: [{
-                      type: "bar",
-                      data: months.map((m) => m.kwh),
-                      itemStyle: { color: "#2563eb" },
-                    }],
+                    series: [
+                      {
+                        type: "bar",
+                        data: months.map((m) => ({
+                          value: m.kwh,
+                          itemStyle: m.incomplete ? { color: "#d97706", opacity: 0.6 } : { color: "#2563eb" },
+                          emphasis: { itemStyle: m.incomplete ? { color: "#d97706", opacity: 0.8 } : { color: "#2563eb" } },
+                        })),
+                      },
+                      {
+                        type: "scatter",
+                        data: months.filter((m) => m.incomplete).map((m) => [m.label, m.kwh + Math.max(m.kwh * 0.08, 0.3)]),
+                        symbol: "path://M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
+                        symbolSize: 18,
+                        itemStyle: { color: "#d97706" },
+                        label: { show: true, formatter: "!", fontSize: 11, color: "#fff", fontWeight: "bold" },
+                        emphasis: { scale: 1.4 },
+                        z: 10,
+                      },
+                    ],
                     tooltip: {
                       trigger: "axis",
                       formatter: (params: any) => {
                         const p = params[0];
                         const cost = Math.round(p.value * kwhRate);
-                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
+                        const monthInfo = months[Number(p.dataIndex)];
+                        const warn = monthInfo?.incomplete ? `<br/><span style="color:#d97706;font-size:11px;">${monthsWarn}</span>` : "";
+                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}${warn}`;
                       },
                     },
                   }} />
@@ -1138,14 +1183,18 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const periodStart = billingDate.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               const todayStr = now.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
               const daysInPeriod = Math.round((now.getTime() - billingDate.getTime()) / 86400000) + 1;
-              const nextBillingDate = new Date(now.getFullYear(), now.getMonth() + 1, billingStartDay);
+              const nextBillingDate = new Date(billingDate.getFullYear(), billingDate.getMonth() + 1, billingStartDay);
               const remainingDays = Math.round((nextBillingDate.getTime() - now.getTime()) / 86400000);
 
               const periodTotal = billingDaily.reduce((s, b) => s + numeric(b.energy_kwh), 0);
               const periodCost = periodTotal * kwhRate;
               const todayTotal = billingDaily.length > 0 ? numeric(billingDaily[billingDaily.length - 1].energy_kwh) : 0;
               const todayCost = todayTotal * kwhRate;
-              const avgDaily = daysInPeriod > 0 ? periodTotal / daysInPeriod : 0;
+              const colDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+              const completeDays = billingDaily.filter((b) => String(b.period) < colDate);
+              const completeTotal = completeDays.reduce((s, b) => s + numeric(b.energy_kwh), 0);
+              const completeCount = completeDays.length;
+              const avgDaily = completeCount > 0 ? completeTotal / completeCount : (daysInPeriod > 0 ? periodTotal / daysInPeriod : 0);
               const projectedTotal = periodTotal + avgDaily * remainingDays;
               const projectedCost = projectedTotal * kwhRate;
               const remainingBudget = projectedTotal - periodTotal;
