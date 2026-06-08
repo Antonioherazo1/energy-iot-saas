@@ -931,13 +931,24 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             <div style={{ zoom: rowFontScales.row2 / 100 }} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
                 <p className="text-sm font-medium text-slate-500">Potencia total <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" /></p>
-                <p className="mt-1 text-4xl font-bold text-ink">
-                  {deviceChannels.filter((ch) => ch.is_active).reduce((sum, ch) => {
-                    const lt = latest.find((l) => l.device_id === selectedDeviceId);
-                    const c = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
-                    return sum + c * ch.voltage;
-                  }, 0).toFixed(0)} <span className="text-lg font-normal text-slate-500">W</span>
-                </p>
+                <div className="mt-1 flex items-baseline gap-6">
+                  <p className="text-4xl font-bold text-ink">
+                    {deviceChannels.filter((ch) => ch.is_active).reduce((sum, ch) => {
+                      const lt = latest.find((l) => l.device_id === selectedDeviceId);
+                      const c = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
+                      return sum + c * ch.voltage;
+                    }, 0).toFixed(0)} <span className="text-lg font-normal text-slate-500">W</span>
+                  </p>
+                  <p className="text-4xl font-bold text-accent">
+                    $ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(
+                      deviceChannels.filter((ch) => ch.is_active).reduce((sum, ch) => {
+                        const lt = latest.find((l) => l.device_id === selectedDeviceId);
+                        const c = lt ? numeric(lt[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null) : 0;
+                        return sum + ((c * ch.voltage) / 1000) * kwhRate;
+                      }, 0)
+                    )} <span className="text-lg font-normal text-slate-500">COP/h</span>
+                  </p>
+                </div>
                 <p className="mt-2 text-sm text-slate-400">Tarifa: $ {Intl.NumberFormat("es-CO").format(kwhRate)} / kWh</p>
               </div>
               <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
