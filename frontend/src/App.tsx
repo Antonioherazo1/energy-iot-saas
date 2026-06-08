@@ -488,9 +488,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       }));
 
     return {
-      grid: { left: 56, right: 16, top: 24 + lsz(24, rowFontScales.chart), bottom: 36 + lsz(36, rowFontScales.chart) },
+      grid: { left: 56, right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: 24 + lsz(24, rowFontScales.chart) },
       tooltip: { trigger: "axis" },
-      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
+      legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
         type: "category",
         data: times,
@@ -533,9 +533,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         };
       });
     return {
-      grid: { left: 56, right: 16, top: 24 + lsz(24, rowFontScales.chart), bottom: 36 + lsz(36, rowFontScales.chart) },
+      grid: { left: 56, right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: 24 + lsz(24, rowFontScales.chart) },
       tooltip: { trigger: "axis" },
-      legend: { bottom: 4, textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
+      legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
         type: "category",
         data: times,
@@ -879,19 +879,19 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       <div className="mb-2">
                         <p className="text-xs font-semibold text-slate-600">{ch.name} · {ch.voltage}V</p>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-center">
+                      <div className="grid grid-cols-3 gap-2 w-full">
+                        <div className="flex flex-col items-center">
                           <p className="text-xs text-slate-400">A</p>
-                          <p className="text-4xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(decimals.current)}</p>
+                          <p className="mt-auto text-4xl font-bold text-ink transition-all duration-200">{currentVal.toFixed(decimals.current)}</p>
                         </div>
-                        <div className="text-center">
+                        <div className="flex flex-col items-center">
                           <p className="text-xs text-slate-400">W</p>
-                          <p className="text-4xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(decimals.power)}</p>
+                          <p className="mt-auto text-4xl font-bold text-brand transition-all duration-200">{powerVal.toFixed(decimals.power)}</p>
                         </div>
-                        <div className="text-center">
+                        <div className="flex flex-col items-center">
                           <p className="text-xs text-slate-400">COP/h</p>
                           <p className="text-[10px] leading-none text-slate-300">instantáneo</p>
-                          <p className="text-4xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
+                          <p className="mt-auto text-4xl font-bold text-accent transition-all duration-200">{Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(costRate)}</p>
                         </div>
                       </div>
                     </div>
@@ -949,18 +949,19 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
           </>
         ) : null}
-        <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-4 overflow-x-auto">
+        <div className="mt-4 overflow-x-auto">
             <Panel title="Corriente por canal (A) - Tiempo real">
-              {currentBuffer.length === 0 ? (
+              <div style={{ zoom: rowFontScales.row3 / 100 }}>
+                {currentBuffer.length === 0 ? (
                 bufferLoading ? (
                   <div className="flex items-center justify-center py-8 text-sm text-slate-500">Cargando...</div>
                 ) : (
                   <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos en los últimos {realtimeMinutes} minutos</div>
                 )
-              ) : (
-                <Chart option={realtimeCurrentOption} />
-              )}
-              <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
+              ) : null}
+              </div>
+              {currentBuffer.length > 0 && <Chart option={realtimeCurrentOption} />}
+              <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-1 flex items-center justify-between text-xs text-slate-400">
                 <div className="flex gap-1">
                   {[10, 30, 60].map((m) => (
                     <button
@@ -978,9 +979,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </Panel>
           </div>
 
-        <div style={{ zoom: rowFontScales.row4 / 100 }} className="mt-6 overflow-x-auto">
+        <div className="mt-6 overflow-x-auto">
           <Panel title="Corriente por canal (A) - Histórico">
-            <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
+            <div style={{ zoom: rowFontScales.row4 / 100 }} className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
               <label className="flex items-center gap-1">
                 <span className="text-slate-400">Fecha</span>
                 <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} />
@@ -1374,7 +1375,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             <p className="mb-4 text-sm text-slate-500">Ajusta el tamaño de fuente de cada fila y las etiquetas de las graficas</p>
             <div className="space-y-4">
               {[
-                { key: "row1", label: "Tarjetas de fase" },
+                { key: "row1", label: "Tarjetas de canales" },
                 { key: "row2", label: "Potencia, energia, costo" },
                 { key: "row3", label: "Tiempo real" },
                 { key: "row4", label: "Historico" },
