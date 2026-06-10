@@ -869,7 +869,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         {/* Device tabs at top */}
         <div className="mt-2">
           <div className="flex flex-wrap items-center gap-0 border-b border-line">
-            {latest.map((lt) => (
+            {latest.map((lt) => {
+              const devStatus = devices.find((d) => d.device_id === lt.device_id);
+              const online = devStatus?.is_online ?? false;
+              return (
               <button
                 key={lt.device_id}
                 className={`-mb-px px-5 py-2.5 text-sm font-medium transition-colors ${
@@ -880,9 +883,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 onClick={() => setSelectedDeviceId(lt.device_id)}
                 type="button"
               >
+                <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${online ? "bg-green-500" : "bg-red-400"}`} />
                 {lt.device_name}
               </button>
-            ))}
+              );
+            })}
             <span className="ml-auto flex items-center gap-2 px-2 text-xs text-slate-400">
               {latest.length} disp.
               <button
@@ -1486,7 +1491,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Tarifa kWh</h2>
             <p className="mb-3 text-sm text-slate-500">Costo por kWh en COP para calcular el valor de la energia consumida</p>
-            <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={100} max={9999} value={kwhRate} onChange={(e) => { const v = Number(e.target.value); if (v >= 100) { setKwhRate(v); updateKwhRate(token, String(v)).catch(() => {}); } }} onFocus={(e) => e.target.select()} />
+            <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={100} max={9999} value={kwhRate} onChange={(e) => { const v = Number(e.target.value); if (!isNaN(v) && v >= 0) { setKwhRate(v); updateKwhRate(token, String(v)).catch(() => {}); } }} onFocus={(e) => e.target.select()} />
             <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>

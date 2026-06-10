@@ -29,5 +29,5 @@ export default function Chart({ option }: ChartProps) {
     chartRef.current?.setOption(option, { notMerge: true });
   }, [option]);
 
-  return <div ref={ref} className="h-96 w-full" />;
+  return <div ref={ref} className="h-56 sm:h-72 lg:h-96 w-full" />;
 }

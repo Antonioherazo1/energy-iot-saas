@@ -63,18 +63,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const headers: HeadersInit = {
     "Content-Type": "application/json"
   };
-  if (options.token) {
-    headers.Authorization = `Bearer ${options.token}`;
+  const token = options.token ?? localStorage.getItem(ACCESS_KEY);
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const method = options.method ?? (options.body ? "POST" : "GET");
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
+  const body = options.body ? JSON.stringify(options.body) : undefined;
 
-  if (response.status === 401 && options.token) {
+  let response = await fetch(`${API_BASE_URL}${path}`, { method, headers, body });
+
+  if (response.status === 401 && token) {
     if (!refreshPromise) {
       refreshPromise = attemptRefresh();
     }
@@ -83,12 +82,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
     if (newToken) {
       headers.Authorization = `Bearer ${newToken}`;
-      const retry = await fetch(`${API_BASE_URL}${path}`, {
-        method: options.body ? "POST" : "GET",
-        headers,
-        body: options.body ? JSON.stringify(options.body) : undefined,
-      });
-      if (retry.ok) return retry.json() as Promise<T>;
+      response = await fetch(`${API_BASE_URL}${path}`, { method, headers, body });
+      if (response.ok) return response.json() as Promise<T>;
     }
     window.location.reload();
     throw new Error("Session expired");
