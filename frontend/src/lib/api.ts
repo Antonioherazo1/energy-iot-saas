@@ -247,3 +247,15 @@ export function deleteDevice(token: string, deviceId: string): Promise<void> {
 export function getDbSize(token: string): Promise<{ size_mb: number }> {
   return request("/dashboard/db-size", { token });
 }
+
+export function getKwhRate(token: string): Promise<{ value: string }> {
+  return request<{ value: string }>("/settings/kwh-rate", { token });
+}
+
+export function updateKwhRate(token: string, value: string): Promise<{ value: string }> {
+  return request<{ value: string }>("/settings/kwh-rate", {
+    token,
+    method: "PUT",
+    body: { value },
+  });
+}

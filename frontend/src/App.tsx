@@ -31,6 +31,8 @@ import {
   linkDevice,
   setupChannels,
   updateChannel,
+  getKwhRate,
+  updateKwhRate,
 } from "./lib/api";
 import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
@@ -129,10 +131,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [rangeLoading, setRangeLoading] = useState(false);
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [sideSection, setSideSection] = useState<string | null>(null);
-  const [kwhRate, setKwhRate] = useState(() => {
-    const saved = localStorage.getItem("kwh_rate");
-    return saved ? Number(saved) : 800;
-  });
+  const [kwhRate, setKwhRate] = useState(800);
   const [rowFontScales, setRowFontScales] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem("row_font_scales");
     return saved ? JSON.parse(saved) : { row1: 100, row2: 100, row3: 100, row4: 100, row5: 100, row6: 100, chart: 100 };
@@ -463,6 +462,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     if (!token || !user) return;
     if (onboardingStep < 3) return;
     void loadBillingData();
+    getKwhRate(token).then((r) => setKwhRate(Number(r.value))).catch(() => {});
   }, [token, user, onboardingStep, billingStartDay]);
 
   async function loadChannelDailyEnergy() {
@@ -1486,7 +1486,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Tarifa kWh</h2>
             <p className="mb-3 text-sm text-slate-500">Costo por kWh en COP para calcular el valor de la energia consumida</p>
-            <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={100} max={9999} value={kwhRate} onChange={(e) => { const v = Number(e.target.value); if (v >= 100) { setKwhRate(v); localStorage.setItem("kwh_rate", String(v)); } }} onFocus={(e) => e.target.select()} />
+            <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={100} max={9999} value={kwhRate} onChange={(e) => { const v = Number(e.target.value); if (v >= 100) { setKwhRate(v); updateKwhRate(token, String(v)).catch(() => {}); } }} onFocus={(e) => e.target.select()} />
             <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
