@@ -1065,7 +1065,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const isToday = i + 1 === now.getDate();
                 const currentPeriod = isToday;
                 const incomplete = isPast && recordCount < 20000;
-                return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), incomplete, currentPeriod };
+                return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), recordCount, incomplete, currentPeriod };
               });
               const hasIncomplete = days.some((d) => d.incomplete);
               const todayData = days.find((d) => d.currentPeriod);
@@ -1121,10 +1121,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     ],
                     tooltip: {
                       trigger: "axis",
-                      formatter: (params: any) => {
+                        formatter: (params: any) => {
                         const p = params[0];
+                        const d = days[Number(p.dataIndex)];
                         const cost = Math.round(p.value * kwhRate);
-                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}`;
+                        return `<strong>Dia ${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}<br/>${d.recordCount.toLocaleString("es-CO")} registros`;
                       },
                     },
                   }} />
@@ -1145,10 +1146,12 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const kwh = found ? numeric(found.energy_kwh) : 0;
                 const currentPeriod = period === currentMonthKey;
                 const incomplete = !currentPeriod && kwh === 0 && d < new Date(now.getFullYear(), now.getMonth(), 1);
+                const recordCount = found ? numeric(found.record_count ?? 0) : 0;
                 return {
                   label: d.toLocaleDateString("es-CO", { month: "short" }),
                   kwh,
                   cost: Math.round(kwh * kwhRate),
+                  recordCount,
                   incomplete,
                   currentPeriod,
                 };
@@ -1196,7 +1199,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                         let extra = "";
                         if (monthInfo?.currentPeriod) extra = '<br/><span style="color:#2563eb;font-size:11px;">\u2022 Per\u00edodo actual</span>';
                         else if (monthInfo?.incomplete) extra = `<br/><span style="color:#d97706;font-size:11px;">${monthsWarn}</span>`;
-                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}${extra}`;
+                        const rc = monthInfo?.recordCount ?? 0;
+                        return `<strong>${p.name}</strong><br/>${p.value.toFixed(2)} kWh<br/>$ ${Intl.NumberFormat("es-CO").format(cost)}<br/>${rc.toLocaleString("es-CO")} registros${extra}`;
                       },
                     },
                   }} />

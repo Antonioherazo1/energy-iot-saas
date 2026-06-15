@@ -214,6 +214,7 @@ def get_billing_monthly_energy(
         select(
             cte.c.period,
             func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
+            func.count().label("record_count"),
         )
         .where(cte.c.energy_delta > 0)
         .group_by(cte.c.period)
@@ -221,7 +222,7 @@ def get_billing_monthly_energy(
         .limit(safe_limit)
     )
     return [
-        {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0")}
+        {"period": row.period.date(), "energy_kwh": row.energy_kwh or Decimal("0"), "record_count": row.record_count}
         for row in rows
     ]
 
