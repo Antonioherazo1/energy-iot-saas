@@ -1071,7 +1071,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const todayData = days.find((d) => d.currentPeriod);
               const todayKwh = todayData?.kwh ?? 0;
               const todayCost = todayData?.cost ?? 0;
-              const avgDays = days.filter((d) => d.kwh > 0 && !d.incomplete);
+              const avgDays = days.filter((d) => d.kwh > 0 && !d.incomplete && !d.currentPeriod);
               const avgDay = avgDays.length > 0 ? avgDays.reduce((s, d) => s + d.kwh, 0) / avgDays.length : 0;
               return (
                 <div className="space-y-2 text-sm">
@@ -1101,7 +1101,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-2">
                       <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#d97706", opacity: 0.6 }} /> Incompleto (excluido)</span>
                       <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#2563eb" }} /> Completo</span>
-                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#2563eb", background: "transparent" }} /> Per\u00edodo actual</span>
+                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#16a34a", background: "transparent" }} /> Período actual</span>
                     </div>
                   )}
                   <Chart option={{
@@ -1114,7 +1114,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                         barMinHeight: 4,
                         data: days.map((d) => {
                           if (d.incomplete) return { value: d.kwh, itemStyle: { color: "#d97706", opacity: 0.6 }, emphasis: { itemStyle: { color: "#d97706", opacity: 0.8 } } };
-                          if (d.currentPeriod) return { value: d.kwh, itemStyle: { color: "#2563eb", borderColor: "#2563eb", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#2563eb" } } };
+                          if (d.currentPeriod) return { value: d.kwh, itemStyle: { color: "#16a34a", borderColor: "#16a34a", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#16a34a" } } };
                           return { value: d.kwh, itemStyle: { color: "#2563eb" }, emphasis: { itemStyle: { color: "#2563eb" } } };
                         }),
                       },
@@ -1175,7 +1175,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                         barMinHeight: 4,
                         data: months.map((m) => {
                           if (m.incomplete) return { value: m.kwh, itemStyle: { color: "#d97706", opacity: 0.6 }, emphasis: { itemStyle: { color: "#d97706", opacity: 0.8 } } };
-                          if (m.currentPeriod) return { value: m.kwh, itemStyle: { color: "#2563eb", borderColor: "#2563eb", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#2563eb" } } };
+                          if (m.currentPeriod) return { value: m.kwh, itemStyle: { color: "#16a34a", borderColor: "#16a34a", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#16a34a" } } };
                           return { value: m.kwh, itemStyle: { color: "#2563eb" }, emphasis: { itemStyle: { color: "#2563eb" } } };
                         }),
                       },
