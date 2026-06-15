@@ -1055,8 +1055,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const year = now.getFullYear();
               const month = String(now.getMonth() + 1).padStart(2, "0");
               const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
-              const hasRecords = daily.some((d) => d.record_count != null);
-              const maxRecords = hasRecords ? Math.max(0, ...daily.filter((d) => d.record_count != null).map((d) => d.record_count!)) : 0;
               const days = Array.from({ length: daysInMonth }, (_, i) => {
                 const day = String(i + 1).padStart(2, "0");
                 const period = `${year}-${month}-${day}`;
@@ -1066,18 +1064,20 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const isPast = i + 1 < now.getDate();
                 const isToday = i + 1 === now.getDate();
                 const currentPeriod = isToday;
-                const incomplete = isPast && (hasRecords ? (recordCount === 0 || recordCount < maxRecords * 0.5) : kwh === 0);
+                const incomplete = isPast && recordCount < 20000;
                 return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), incomplete, currentPeriod };
               });
               const hasIncomplete = days.some((d) => d.incomplete);
-              const monthTotal = days.reduce((s, d) => s + d.kwh, 0);
+              const todayData = days.find((d) => d.currentPeriod);
+              const todayKwh = todayData?.kwh ?? 0;
+              const todayCost = todayData?.cost ?? 0;
               const avgDays = days.filter((d) => d.kwh > 0 && !d.incomplete);
               const avgDay = avgDays.length > 0 ? avgDays.reduce((s, d) => s + d.kwh, 0) / avgDays.length : 0;
               return (
                 <div className="space-y-2 text-sm">
                   <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                    <p className="text-3xl font-semibold text-brand">{monthTotal.toFixed(2)} <span className="text-lg font-normal text-slate-500">kWh</span></p>
-                    <p className="text-lg font-medium text-slate-600">$ {Intl.NumberFormat("es-CO").format(Math.round(monthTotal * kwhRate))}</p>
+                    <p className="text-lg font-semibold text-ink">{todayKwh.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh hoy</span></p>
+                    <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO").format(Math.round(todayCost))} <span className="text-sm font-normal text-slate-500">hoy</span></p>
                     <p className="text-xs text-slate-400 ml-auto">Promedio: {avgDay.toFixed(2)} kWh/dia</p>
                     <button
                       className="h-7 rounded border border-line bg-white px-2 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-40"
@@ -1117,16 +1117,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                           if (d.currentPeriod) return { value: d.kwh, itemStyle: { color: "#2563eb", borderColor: "#2563eb", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#2563eb" } } };
                           return { value: d.kwh, itemStyle: { color: "#2563eb" }, emphasis: { itemStyle: { color: "#2563eb" } } };
                         }),
-                      },
-                      {
-                        type: "scatter",
-                        data: days.filter((d) => d.incomplete).map((d) => [d.label, d.kwh + Math.max(d.kwh * 0.08, 0.3)]),
-                        symbol: "path://M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
-                        symbolSize: 18,
-                        itemStyle: { color: "#d97706" },
-                        label: { show: true, formatter: "!", fontSize: 11, color: "#fff", fontWeight: "bold" },
-                        emphasis: { scale: 1.4 },
-                        z: 10,
                       },
                     ],
                     tooltip: {
