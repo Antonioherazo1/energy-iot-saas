@@ -1226,7 +1226,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const todayTotal = billingDaily.length > 0 ? numeric(billingDaily[billingDaily.length - 1].energy_kwh) : 0;
               const todayCost = todayTotal * kwhRate;
               const colDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-              const completeDays = billingDaily.filter((b) => String(b.period) < colDate);
+              const completeDays = billingDaily.filter((b) => String(b.period) < colDate && (b.record_count ?? 0) >= 20000);
               const completeTotal = completeDays.reduce((s, b) => s + numeric(b.energy_kwh), 0);
               const completeCount = completeDays.length;
               const avgDaily = completeCount > 0 ? completeTotal / completeCount : (daysInPeriod > 0 ? periodTotal / daysInPeriod : 0);
