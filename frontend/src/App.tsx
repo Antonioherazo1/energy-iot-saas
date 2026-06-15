@@ -1146,7 +1146,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const kwh = found ? numeric(found.energy_kwh) : 0;
                 const currentPeriod = period === currentMonthKey;
                 const incomplete = !currentPeriod && kwh === 0 && d < new Date(now.getFullYear(), now.getMonth(), 1);
-                const recordCount = found ? numeric(found.record_count ?? 0) : 0;
+                const recordCount = found ? (found.record_count ?? 0) : 0;
                 return {
                   label: d.toLocaleDateString("es-CO", { month: "short" }),
                   kwh,
