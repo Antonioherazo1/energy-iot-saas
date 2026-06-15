@@ -1009,7 +1009,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 )
               ) : null}
               </div>
-              {currentBuffer.length > 0 && <Chart option={realtimeCurrentOption} />}
+              {currentBuffer.length > 0 && <Chart option={realtimeCurrentOption} className="h-72 sm:h-72 lg:h-96" />}
               <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-1 flex items-center justify-between text-xs text-slate-400">
                 <div className="flex gap-1">
                   {[10, 30, 60].map((m) => (
@@ -1045,7 +1045,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               </label>
               <span className="text-slate-300">{daySeries.length} registros{dayLoading ? " · cargando" : ""}</span>
             </div>
-            <Chart option={channelsOption} />
+            <Chart option={channelsOption} className="h-72 sm:h-72 lg:h-96" />
           </Panel>
         </div>
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
