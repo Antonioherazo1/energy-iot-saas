@@ -579,7 +579,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             data: gapAreas.map((g) => [
               { xAxis: g.start },
               { xAxis: g.end },
-            ]),
+            ] as [Record<string, string>, Record<string, string>]),
           } : undefined,
         };
       });
