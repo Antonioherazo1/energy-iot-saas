@@ -142,6 +142,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   });
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
+  const [showGaps, setShowGaps] = useState(true);
 
   useEffect(() => {
     localStorage.setItem("row_font_scales", JSON.stringify(rowFontScales));
@@ -508,6 +509,18 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
     });
 
+    const gapAreasHist: { start: string; end: string }[] = [];
+    if (showGaps && filtered.length > 1) {
+      for (let i = 1; i < filtered.length; i++) {
+        const prevT = new Date(filtered[i - 1].recorded_at ?? "").getTime();
+        const currT = new Date(filtered[i].recorded_at ?? "").getTime();
+        const diff = (currT - prevT) / 1000;
+        if (diff > 15) {
+          gapAreasHist.push({ start: times[i - 1], end: times[i] });
+        }
+      }
+    }
+
     const activeChannels = deviceChannels.filter((ch) => ch.is_active);
 
     const series = activeChannels
@@ -518,6 +531,14 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         name: ch.name,
         data: filtered.map((d) => numeric(d[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null)),
         lineStyle: { color: colors[idx % colors.length], width: 2 },
+        markArea: gapAreasHist.length > 0 ? {
+          silent: true,
+          itemStyle: { color: "rgba(220, 38, 38, 0.12)" },
+          data: gapAreasHist.map((g) => [
+            { xAxis: g.start },
+            { xAxis: g.end },
+          ] as [Record<string, string>, Record<string, string>]),
+        } : undefined,
       }));
 
     return {
@@ -544,7 +565,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       },
       series,
     };
-  }, [channelData, daySeries, deviceChannels, channelHourFrom, channelHourTo, rowFontScales]);
+  }, [channelData, daySeries, deviceChannels, channelHourFrom, channelHourTo, rowFontScales, showGaps]);
 
   const realtimeCurrentOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
@@ -552,14 +573,16 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       const t = new Date(d.recorded_at ?? "");
       return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:${String(t.getSeconds()).padStart(2, "0")}`;
     });
-    const gapThreshold = 6; // seconds
+    const gapThreshold = 6;
     const gapAreas: { start: string; end: string }[] = [];
-    for (let i = 1; i < currentBuffer.length; i++) {
-      const prevT = new Date(currentBuffer[i - 1].recorded_at ?? "").getTime();
-      const currT = new Date(currentBuffer[i].recorded_at ?? "").getTime();
-      const diff = (currT - prevT) / 1000;
-      if (diff > gapThreshold) {
-        gapAreas.push({ start: times[i - 1], end: times[i] });
+    if (showGaps) {
+      for (let i = 1; i < currentBuffer.length; i++) {
+        const prevT = new Date(currentBuffer[i - 1].recorded_at ?? "").getTime();
+        const currT = new Date(currentBuffer[i].recorded_at ?? "").getTime();
+        const diff = (currT - prevT) / 1000;
+        if (diff > gapThreshold) {
+          gapAreas.push({ start: times[i - 1], end: times[i] });
+        }
       }
     }
     const series = deviceChannels
@@ -607,7 +630,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       },
       series,
     };
-  }, [currentBuffer, deviceChannels, rowFontScales]);
+  }, [currentBuffer, deviceChannels, rowFontScales, showGaps]);
 
   if (!token || !user || (onboardingStep === 0 && user === null)) {
     const signingUp = authMode === "signup";
@@ -1042,6 +1065,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   ))}
                 </div>
                 <span>{currentBuffer.length} registros · actualiza cada 5s</span>
+                <button className="ml-2 rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Gaps</button>
               </div>
           </Panel>
         </div>
@@ -1062,6 +1086,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 <input className="h-8 w-16 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="number" min={1} max={24} value={channelHourTo} onChange={(e) => setChannelHourTo(Number(e.target.value))} onFocus={(e) => e.target.select()} />
               </label>
               <span className="text-slate-300">{daySeries.length} registros{dayLoading ? " · cargando" : ""}</span>
+              <button className="ml-2 rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Gaps</button>
             </div>
             <Chart option={channelsOption} className="h-72 sm:h-72 lg:h-96" />
           </Panel>
