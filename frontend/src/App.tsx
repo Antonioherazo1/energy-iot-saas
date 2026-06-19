@@ -552,6 +552,16 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       const t = new Date(d.recorded_at ?? "");
       return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:${String(t.getSeconds()).padStart(2, "0")}`;
     });
+    const gapThreshold = 6; // seconds
+    const gapAreas: { start: string; end: string }[] = [];
+    for (let i = 1; i < currentBuffer.length; i++) {
+      const prevT = new Date(currentBuffer[i - 1].recorded_at ?? "").getTime();
+      const currT = new Date(currentBuffer[i].recorded_at ?? "").getTime();
+      const diff = (currT - prevT) / 1000;
+      if (diff > gapThreshold) {
+        gapAreas.push({ start: times[i - 1], end: times[i] });
+      }
+    }
     const series = deviceChannels
       .filter((ch) => ch.is_active)
       .map((ch) => {
@@ -563,6 +573,14 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           name: ch.name,
           data: currentBuffer.map((d) => numeric(d[key] as string | null)),
           lineStyle: { color: colors[(ch.channel_number - 1) % colors.length], width: 2 },
+          markArea: gapAreas.length > 0 ? {
+            silent: true,
+            itemStyle: { color: "rgba(220, 38, 38, 0.12)" },
+            data: gapAreas.map((g) => [
+              { xAxis: g.start },
+              { xAxis: g.end },
+            ]),
+          } : undefined,
         };
       });
     return {
