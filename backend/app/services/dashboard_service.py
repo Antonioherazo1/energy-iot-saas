@@ -213,10 +213,9 @@ def get_billing_monthly_energy(
     rows = db.execute(
         select(
             cte.c.period,
-            func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
+            func.coalesce(func.sum(case((cte.c.energy_delta > 0, cte.c.energy_delta), else_=0)), 0).label("energy_kwh"),
             func.count().label("record_count"),
         )
-        .where(cte.c.energy_delta > 0)
         .group_by(cte.c.period)
         .order_by(desc(cte.c.period))
         .limit(safe_limit)
@@ -373,10 +372,9 @@ def get_billing_current_daily(
     rows = db.execute(
         select(
             cte.c.period,
-            func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
+            func.coalesce(func.sum(case((cte.c.energy_delta > 0, cte.c.energy_delta), else_=0)), 0).label("energy_kwh"),
             func.count().label("record_count"),
         )
-        .where(cte.c.energy_delta > 0)
         .group_by(cte.c.period)
         .order_by(cte.c.period)
     )
@@ -567,10 +565,9 @@ def recalculate_daily_energy(
     rows = db.execute(
         select(
             cte.c.period,
-            func.coalesce(func.sum(cte.c.energy_delta), 0).label("energy_kwh"),
+            func.coalesce(func.sum(case((cte.c.energy_delta > 0, cte.c.energy_delta), else_=0)), 0).label("energy_kwh"),
             func.count().label("record_count"),
         )
-        .where(cte.c.energy_delta > 0)
         .group_by(cte.c.period)
         .order_by(cte.c.period)
     )
