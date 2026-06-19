@@ -29,8 +29,6 @@ def publish_telemetry_event(device: Device, telemetry: Telemetry) -> None:
         "organization_id": str(device.organization_id),
         "recorded_at": telemetry.recorded_at.isoformat(),
         "voltage": decimal_to_string(telemetry.voltage),
-        "current": decimal_to_string(telemetry.current),
-        "power": decimal_to_string(telemetry.power),
         "energy_kwh": decimal_to_string(telemetry.energy_kwh),
         "frequency": decimal_to_string(telemetry.frequency),
         "power_factor": decimal_to_string(telemetry.power_factor),
@@ -95,9 +93,7 @@ def create_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> Tel
     )
 
     ch_currents = [payload.ch1, payload.ch2, payload.ch3, payload.ch4]
-    ch_powers: list[Decimal | None] = [None, None, None, None]
     ch_energies: list[Decimal | None] = [None, None, None, None]
-    total_power = Decimal("0")
     global_voltage = Decimal(str(settings.assumed_voltage))
     has_channels = len(channels) > 0
 
@@ -110,13 +106,7 @@ def create_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> Tel
             continue
         ch_voltage = global_voltage if ch_config is None else ch_config.voltage
         ch_power_val = ch_current * ch_voltage
-        ch_powers[idx] = ch_power_val
-        total_power += ch_power_val
         ch_energies[idx] = _calc_channel_energy(prev, ch_power_val, recorded_at, idx + 1)
-
-    total_current = sum(c for c in ch_currents if c is not None) or payload.current
-    if total_current is None:
-        total_current = Decimal("0")
 
     total_energy = sum(e for e in ch_energies if e is not None) or payload.energy_kwh
 
@@ -124,8 +114,6 @@ def create_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> Tel
         device_id=device.id,
         recorded_at=recorded_at,
         voltage=payload.voltage or global_voltage,
-        current=total_current,
-        power=total_power,
         energy_kwh=total_energy,
         frequency=payload.frequency,
         power_factor=payload.power_factor,

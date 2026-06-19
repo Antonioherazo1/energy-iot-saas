@@ -59,8 +59,6 @@ def latest_telemetry_query(organization_ids: list[uuid.UUID]) -> Select:
             Telemetry.device_id,
             Telemetry.recorded_at,
             Telemetry.voltage,
-            Telemetry.current,
-            Telemetry.power,
             Telemetry.energy_kwh,
             Telemetry.frequency,
             Telemetry.power_factor,
@@ -86,8 +84,6 @@ def latest_telemetry_query(organization_ids: list[uuid.UUID]) -> Select:
             Device.code.label("device_code"),
             latest.c.recorded_at,
             latest.c.voltage,
-            latest.c.current,
-            latest.c.power,
             latest.c.energy_kwh,
             latest.c.frequency,
             latest.c.power_factor,
@@ -112,7 +108,19 @@ def get_latest_telemetry(db: Session, user: User, organization_id: uuid.UUID | N
         return []
 
     rows = db.execute(latest_telemetry_query(organization_ids))
-    return [dict(row._mapping) for row in rows]
+    result = []
+    for row in rows:
+        d = dict(row._mapping)
+        power = Decimal("0")
+        voltage = d.get("voltage") or Decimal("0")
+        for ch_num in range(1, 5):
+            ch_key = f"ch{ch_num}"
+            ch_current = d.get(ch_key)
+            if ch_current is not None:
+                power += ch_current * voltage
+        d["power"] = power
+        result.append(d)
+    return result
 
 
 def get_energy_by_period(
@@ -402,7 +410,6 @@ def get_channel_time_series(
             Telemetry.ch2,
             Telemetry.ch3,
             Telemetry.ch4,
-            Telemetry.power,
             Telemetry.ch1_energy_kwh,
             Telemetry.ch2_energy_kwh,
             Telemetry.ch3_energy_kwh,

@@ -254,8 +254,6 @@ def telemetry_range(
             Telemetry.device_id,
             Telemetry.recorded_at,
             Telemetry.voltage,
-            Telemetry.current,
-            Telemetry.power,
             Telemetry.energy_kwh,
             Telemetry.frequency,
             Telemetry.power_factor,

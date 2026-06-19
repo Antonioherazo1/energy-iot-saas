@@ -20,8 +20,6 @@ class LatestTelemetryRead(BaseModel):
     device_code: str
     recorded_at: datetime | None
     voltage: Decimal | None
-    current: Decimal | None
-    power: Decimal | None
     energy_kwh: Decimal | None
     frequency: Decimal | None
     power_factor: Decimal | None

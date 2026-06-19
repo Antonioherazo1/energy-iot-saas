@@ -7,8 +7,6 @@ from pydantic import BaseModel
 
 class TelemetryBase(BaseModel):
     voltage: Decimal | None = None
-    current: Decimal | None = None
-    power: Decimal | None = None
     energy_kwh: Decimal | None = None
     frequency: Decimal | None = None
     power_factor: Decimal | None = None
