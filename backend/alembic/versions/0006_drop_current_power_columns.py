@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "0006"
-down_revision = "0005"
+down_revision = "0005_add_settings_table"
 branch_labels = None
 depends_on = None
 
