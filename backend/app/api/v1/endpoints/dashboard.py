@@ -1,7 +1,7 @@
 import csv
 import io
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -20,6 +20,8 @@ from app.schemas.dashboard import DashboardSummaryRead, DeviceStatusRead, Energy
 from app.services.dashboard_service import get_accessible_organization_ids, get_billing_current_daily, get_billing_daily_per_channel, get_billing_monthly_energy, get_channel_day_series, get_device_status, get_energy_by_period, get_latest_telemetry, get_realtime_currents, get_summary, recalculate_daily_energy
 
 router = APIRouter()
+
+COL_TZ = timedelta(hours=-5)  # Colombia (UTC-5)
 
 
 @router.get("/summary", response_model=DashboardSummaryRead)
@@ -175,18 +177,22 @@ def telemetry_csv(
     ws = wb.active
     ws.title = "Telemetria"
     bold = Font(bold=True)
-    headers = ["Dispositivo", "Codigo", "Fecha", "Voltaje (V)", "Corriente (A)", "Potencia (W)", "Energia (kWh)", "Frecuencia (Hz)", "FP", "CH1 (A)", "CH2 (A)", "CH3 (A)", "CH4 (A)"]
+    headers = ["Dispositivo", "Codigo", "Fecha", "Voltaje (V)", "Energia (kWh)", "Frecuencia (Hz)", "FP", "CH1 (A)", "CH2 (A)", "CH3 (A)", "CH4 (A)"]
     ws.append(headers)
     for cell in ws[1]:
         cell.font = bold
+    col_tz = timezone(COL_TZ)
     for telemetry, device in rows:
+        if telemetry.recorded_at:
+            col_time = telemetry.recorded_at.astimezone(col_tz)
+            fecha = col_time.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            fecha = ""
         ws.append([
             device.name,
             device.code,
-            telemetry.recorded_at.isoformat() if telemetry.recorded_at else "",
+            fecha,
             telemetry.voltage,
-            telemetry.current,
-            telemetry.power,
             telemetry.energy_kwh,
             telemetry.frequency,
             telemetry.power_factor,
@@ -211,7 +217,7 @@ def _empty_excel() -> StreamingResponse:
     ws = wb.active
     ws.title = "Telemetria"
     bold = Font(bold=True)
-    headers = ["Dispositivo", "Codigo", "Fecha", "Voltaje (V)", "Corriente (A)", "Potencia (W)", "Energia (kWh)", "Frecuencia (Hz)", "FP", "CH1 (A)", "CH2 (A)", "CH3 (A)", "CH4 (A)"]
+    headers = ["Dispositivo", "Codigo", "Fecha", "Voltaje (V)", "Energia (kWh)", "Frecuencia (Hz)", "FP", "CH1 (A)", "CH2 (A)", "CH3 (A)", "CH4 (A)"]
     ws.append(headers)
     for cell in ws[1]:
         cell.font = bold
