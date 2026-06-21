@@ -4,9 +4,21 @@
 
 static File sendingFile;
 static bool sendingMode = false;
+static bool fsOk = false;
 
 bool iniciarStorage() {
-  if (!LittleFS.begin()) return false;
+  if (LittleFS.begin()) {
+    fsOk = true;
+  } else {
+    Serial.println("Formateando LittleFS...");
+    if (LittleFS.format() && LittleFS.begin()) {
+      fsOk = true;
+      Serial.println("LittleFS formateado OK");
+    } else {
+      Serial.println("LittleFS no disponible - buffer desactivado");
+      return false;
+    }
+  }
   if (LittleFS.exists(BUFFER_SENDING)) {
     LittleFS.remove(BUFFER_SENDING);
   }
@@ -14,8 +26,9 @@ bool iniciarStorage() {
 }
 
 bool guardarLectura(uint32_t epoch, float ch1, float ch2, float ch3, float ch4) {
+  if (!fsOk) return false;
   if (LittleFS.totalBytes() - LittleFS.usedBytes() < BUFFER_RECORD_SIZE + 512) {
-    Serial.println("Buffer lleno, descartando lectura");
+    Serial.println("Espacio LittleFS agotado, descartando lectura");
     return false;
   }
   File f = LittleFS.open(BUFFER_FILE, "a");
@@ -35,6 +48,7 @@ bool guardarLectura(uint32_t epoch, float ch1, float ch2, float ch3, float ch4) 
 }
 
 int contarRegistrosPendientes() {
+  if (!fsOk) return 0;
   if (sendingMode) {
     size_t total = sendingFile.size();
     size_t restantes = total - sendingFile.position();
@@ -49,6 +63,7 @@ int contarRegistrosPendientes() {
 }
 
 int leerTodasLecturas(uint8_t* buffer, int maxBytes) {
+  if (!fsOk) return 0;
   if (!LittleFS.exists(BUFFER_FILE)) return 0;
   File f = LittleFS.open(BUFFER_FILE, "r");
   if (!f) return 0;
@@ -58,6 +73,7 @@ int leerTodasLecturas(uint8_t* buffer, int maxBytes) {
 }
 
 void limpiarBuffer() {
+  if (!fsOk) return;
   if (sendingMode) {
     sendingFile.close();
     LittleFS.remove(BUFFER_SENDING);
@@ -67,6 +83,7 @@ void limpiarBuffer() {
 }
 
 bool iniciarEnvioBuffer() {
+  if (!fsOk) return false;
   if (!LittleFS.exists(BUFFER_FILE)) return false;
   LittleFS.remove(BUFFER_SENDING);
   if (!LittleFS.rename(BUFFER_FILE, BUFFER_SENDING)) return false;
@@ -101,6 +118,7 @@ bool hayEnvioPendiente() {
 }
 
 bool guardarConfig(const Configuracion& cfg) {
+  if (!fsOk) return false;
   File f = LittleFS.open(CONFIG_FILE, "w");
   if (!f) return false;
   String json = "{";
@@ -132,6 +150,7 @@ bool guardarConfig(const Configuracion& cfg) {
 }
 
 bool cargarConfig(Configuracion& cfg) {
+  if (!fsOk) return false;
   if (!LittleFS.exists(CONFIG_FILE)) return false;
   File f = LittleFS.open(CONFIG_FILE, "r");
   if (!f) return false;
