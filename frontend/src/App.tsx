@@ -1676,7 +1676,7 @@ function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: s
         }
       } else {
         setConfig(null);
-        setMsg("No hay respuesta del ESP32. Presiona 'Refrescar' para intentar de nuevo.");
+        setMsg("Comando 'status' enviado al ESP32 via MQTT. Si no responde, verifica que: (1) el firmware del ESP32 tenga soporte de comandos, (2) el code '" + deviceCode + "' coincida con la MAC del ESP32, (3) el ESP32 este encendido y conectado.");
       }
     } catch (e: any) {
       setMsg("Error: " + (e.message ?? "desconocido"));
