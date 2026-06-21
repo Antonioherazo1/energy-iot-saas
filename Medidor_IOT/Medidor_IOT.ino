@@ -8,6 +8,7 @@
 #include "storage_manager.h"
 #include "config.h"
 
+String deviceID;
 unsigned long ultimaLectura = 0;
 static const int MAX_ENVIO_BUFFER = 15;
 
