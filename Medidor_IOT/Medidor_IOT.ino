@@ -83,33 +83,31 @@ void loop() {
         Serial.print("Buffer enviados: ");
         Serial.println(count);
       }
-      guardarLectura(obtenerUnixTime(), corrientes[0], corrientes[1], corrientes[2], corrientes[3]);
-    } else {
-      uint32_t epoch = obtenerUnixTime();
-      String hora = formatearEpoch(epoch);
-      String payload = "{";
-      payload += "\"device_id\":\"";
-      payload += deviceID;
-      payload += "\",";
-      payload += "\"timestamp\":\"";
-      payload += hora;
-      payload += "\",";
-      payload += "\"ch1\":";
-      payload += String(corrientes[0], 2);
-      payload += ",";
-      payload += "\"ch2\":";
-      payload += String(corrientes[1], 2);
-      payload += ",";
-      payload += "\"ch3\":";
-      payload += String(corrientes[2], 2);
-      payload += ",";
-      payload += "\"ch4\":";
-      payload += String(corrientes[3], 2);
-      payload += "}";
-
-      Serial.println(payload);
-      publicarMQTT(payload);
     }
+    uint32_t epoch = obtenerUnixTime();
+    String hora = formatearEpoch(epoch);
+    String payload = "{";
+    payload += "\"device_id\":\"";
+    payload += deviceID;
+    payload += "\",";
+    payload += "\"timestamp\":\"";
+    payload += hora;
+    payload += "\",";
+    payload += "\"ch1\":";
+    payload += String(corrientes[0], 2);
+    payload += ",";
+    payload += "\"ch2\":";
+    payload += String(corrientes[1], 2);
+    payload += ",";
+    payload += "\"ch3\":";
+    payload += String(corrientes[2], 2);
+    payload += ",";
+    payload += "\"ch4\":";
+    payload += String(corrientes[3], 2);
+    payload += "}";
+
+    Serial.println(payload);
+    publicarMQTT(payload);
   } else {
     guardarLectura(obtenerUnixTime(), corrientes[0], corrientes[1], corrientes[2], corrientes[3]);
     Serial.print("Sin conexion. Buffer: ");
