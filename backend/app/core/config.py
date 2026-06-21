@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     mqtt_topic: str = "devices/+/telemetry"
     assumed_voltage: int = 110
     esp32_topic: str = "energia/datos"
+    admin_password: str = "admin123"
 
     db_pool_size: int = 5
     db_max_overflow: int = 5

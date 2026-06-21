@@ -1,5 +1,5 @@
-import { DollarSign, Download, Hash, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Zap } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Cpu, DollarSign, Download, Hash, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Zap } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
 
@@ -33,6 +33,9 @@ import {
   updateChannel,
   getKwhRate,
   updateKwhRate,
+  esp32GetStatus,
+  esp32SendCommand,
+  esp32SendAdminCommand,
 } from "./lib/api";
 import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
@@ -143,6 +146,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
   const [showGaps, setShowGaps] = useState(true);
+  const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
+  const [esp32Cached, setEsp32Cached] = useState(false);
+  const [esp32Loading, setEsp32Loading] = useState(false);
+  const [esp32AdminPassword, setEsp32AdminPassword] = useState("");
 
   useEffect(() => {
     localStorage.setItem("row_font_scales", JSON.stringify(rowFontScales));
@@ -1360,6 +1367,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <SideMenuItem icon={<Zap size={18} />} label="Corte de dia" onClick={() => { setSideSection("billing-day"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Download size={18} />} label="Descargar Excel" onClick={() => { setSideSection("download"); setShowSideMenu(false); }} />
               {selectedDeviceId && <SideMenuItem icon={<Trash2 size={18} />} label="Eliminar dispositivo" onClick={() => { setSideSection("delete"); setShowSideMenu(false); }} />}
+              {selectedDeviceId && <SideMenuItem icon={<Cpu size={18} />} label="ESP32 Config" onClick={() => { setSideSection("esp32"); setShowSideMenu(false); }} />}
               <SideMenuItem icon={<DollarSign size={18} />} label="Tarifa kWh" onClick={() => { setSideSection("kwh-rate"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Hash size={18} />} label="Decimales" onClick={() => { setSideSection("decimals"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Type size={18} />} label="Factor de fuente" onClick={() => { setSideSection("font-scale"); setShowSideMenu(false); }} />
@@ -1575,6 +1583,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </section>
         </div>
       )}
+      {sideSection === "esp32" && selectedDeviceId && (
+        <Esp32ConfigPanel
+          token={token}
+          deviceId={selectedDeviceId}
+          onClose={() => setSideSection(null)}
+        />
+      )}
     </main>
   );
 }
@@ -1619,5 +1634,164 @@ function SideMenuItem({ icon, label, onClick }: { icon: ReactNode; label: string
       {icon}
       {label}
     </button>
+  );
+}
+
+function Esp32ConfigPanel({ token, deviceId, onClose }: { token: string; deviceId: string; onClose: () => void }) {
+  const [config, setConfig] = useState<Record<string, any> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [adminPass, setAdminPass] = useState("");
+
+  // Editable local state for user settings
+  const [noiseFloor, setNoiseFloor] = useState<number[]>([0.05, 0.05, 0.05, 0.05]);
+  const [voltaje, setVoltaje] = useState(120);
+  const [canales, setCanales] = useState([true, true, true, true]);
+  // Admin settings
+  const [calibracion, setCalibracion] = useState<number[]>([1, 1, 1, 1]);
+  const [alpha, setAlpha] = useState(0.2);
+  const [intervalo, setIntervalo] = useState(2000);
+
+  const loadStatus = useCallback(async () => {
+    setLoading(true);
+    setMsg("");
+    try {
+      const res = await esp32GetStatus(token, deviceId);
+      if (res.data?.settings) {
+        const s = res.data.settings as Record<string, any>;
+        setConfig(res.data);
+        setNoiseFloor(s.noiseFloor as number[]);
+        setVoltaje(s.voltaje as number);
+        setCanales(s.canales as boolean[]);
+        setCalibracion(s.calibracion as number[]);
+        setAlpha(s.alpha as number);
+        setIntervalo(s.intervalo as number);
+        if (!res.cached) {
+          setMsg("Solicitando estado... espera unos segundos y presiona 'Refrescar'");
+        }
+      } else {
+        setConfig(null);
+        setMsg("No hay respuesta del ESP32. Presiona 'Refrescar' para intentar de nuevo.");
+      }
+    } catch (e: any) {
+      setMsg("Error: " + (e.message ?? "desconocido"));
+    }
+    setLoading(false);
+  }, [token, deviceId]);
+
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const send = async (cmd: string, extra: Record<string, unknown> = {}) => {
+    setMsg("");
+    try {
+      await esp32SendCommand(token, deviceId, { cmd, ...extra });
+      setMsg("Comando enviado");
+      setTimeout(loadStatus, 1000);
+    } catch (e: any) {
+      setMsg("Error: " + (e.message ?? "desconocido"));
+    }
+  };
+
+  const sendAdmin = async (cmd: string, extra: Record<string, unknown> = {}) => {
+    if (!adminPass) { setMsg("Ingresa la contraseña de administrador"); return; }
+    setMsg("");
+    try {
+      await esp32SendAdminCommand(token, deviceId, { cmd, ...extra }, adminPass);
+      setMsg("Comando admin enviado");
+      setTimeout(loadStatus, 1000);
+    } catch (e: any) {
+      setMsg("Error: " + (e.message ?? "desconocido"));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <section className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold">ESP32 Config</h2>
+          <button className="text-xs text-slate-400 hover:text-ink" onClick={onClose} type="button">✕</button>
+        </div>
+
+        <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
+          <span className="truncate font-mono">{deviceId}</span>
+          {config && (
+            <>
+              <span>RSSI: {config.rssi ?? "?"}</span>
+              <span>Buf: {config.buffer ?? "?"}</span>
+              <span>{config.uptime != null ? Math.floor(config.uptime / 3600) + "h" : ""}</span>
+            </>
+          )}
+          <button className="ml-auto rounded bg-slate-100 px-2 py-0.5 text-xs hover:bg-slate-200 disabled:opacity-50" disabled={loading} onClick={loadStatus} type="button">Refrescar</button>
+        </div>
+
+        {msg && <p className="mb-3 text-xs text-amber-600">{msg}</p>}
+
+        <div className="space-y-5">
+          {/* Canales */}
+          <div>
+            <h3 className="mb-2 text-sm font-medium">Canales</h3>
+            <div className="grid grid-cols-4 gap-2">
+              {canales.map((h, i) => (
+                <button key={i} className={`rounded border px-2 py-1 text-xs ${h ? "border-brand bg-brand/10 text-brand" : "border-slate-200 text-slate-400"}`} onClick={() => { const n = [...canales]; n[i] = !n[i]; setCanales(n); send("habilitar_canal", { canal: i, habilitado: !h }); }} type="button">
+                  CH{i + 1} {h ? "ON" : "OFF"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Piso de ruido */}
+          <div>
+            <h3 className="mb-2 text-sm font-medium">Piso de ruido (A)</h3>
+            <div className="grid grid-cols-4 gap-2">
+              {noiseFloor.map((v, i) => (
+                <input key={i} className="w-full rounded border border-line px-2 py-1 text-xs text-center outline-none focus:border-brand" type="number" step={0.005} min={0} value={v} onChange={(e) => { const n = [...noiseFloor]; n[i] = parseFloat(e.target.value) || 0; setNoiseFloor(n); }} onBlur={() => send("noise_floor", { canal: i, valor: noiseFloor[i] })} />
+              ))}
+            </div>
+          </div>
+
+          {/* Voltaje */}
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-medium">Voltaje nominal (V)</h3>
+            <input className="w-24 rounded border border-line px-2 py-1 text-xs text-center outline-none focus:border-brand" type="number" value={voltaje} onChange={(e) => setVoltaje(parseInt(e.target.value) || 0)} onBlur={() => send("voltaje", { valor: voltaje })} />
+          </div>
+
+          <hr className="border-line" />
+
+          {/* Admin section */}
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-amber-600">Ajustes de administrador</h3>
+            <p className="mb-2 text-xs text-slate-400">Requieren contraseña de administrador</p>
+
+            <input className="mb-3 w-full rounded border border-line px-2 py-1 text-xs text-center outline-none focus:border-amber-500" type="password" placeholder="Contraseña admin" value={adminPass} onChange={(e) => setAdminPass(e.target.value)} />
+
+            {/* Calibracion */}
+            <div className="mb-3">
+              <h4 className="mb-1 text-xs text-slate-500">Calibración</h4>
+              <div className="grid grid-cols-4 gap-2">
+                {calibracion.map((v, i) => (
+                  <input key={i} className="w-full rounded border border-line px-2 py-1 text-xs text-center outline-none focus:border-amber-500" type="number" step={0.001} min={0} value={v} onChange={(e) => { const n = [...calibracion]; n[i] = parseFloat(e.target.value) || 0; setCalibracion(n); }} onBlur={() => sendAdmin("calibrar", { canal: i, valor: calibracion[i] })} />
+                ))}
+              </div>
+            </div>
+
+            {/* Alpha */}
+            <div className="mb-3 flex items-center gap-3">
+              <h4 className="text-xs text-slate-500">Alpha (EMA)</h4>
+              <input className="w-20 rounded border border-line px-2 py-1 text-xs text-center outline-none focus:border-amber-500" type="number" step={0.01} min={0} max={1} value={alpha} onChange={(e) => setAlpha(parseFloat(e.target.value) || 0)} onBlur={() => sendAdmin("alpha", { valor: alpha })} />
+              <span className="text-[10px] text-slate-400">0.01 - 1.0</span>
+            </div>
+
+            {/* Intervalo */}
+            <div className="flex items-center gap-3">
+              <h4 className="text-xs text-slate-500">Intervalo (ms)</h4>
+              <input className="w-20 rounded border border-line px-2 py-1 text-xs text-center outline-none focus:border-amber-500" type="number" step={100} min={200} max={60000} value={intervalo} onChange={(e) => setIntervalo(parseInt(e.target.value) || 0)} onBlur={() => sendAdmin("intervalo", { valor: intervalo })} />
+              <span className="text-[10px] text-slate-400">200 - 60000</span>
+            </div>
+          </div>
+        </div>
+
+        <button className="mt-5 w-full rounded-md border border-line bg-white py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" onClick={onClose} type="button">Cerrar</button>
+      </section>
+    </div>
   );
 }

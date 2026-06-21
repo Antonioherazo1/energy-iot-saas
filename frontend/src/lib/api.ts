@@ -19,6 +19,7 @@ type RequestOptions = {
   token?: string;
   body?: unknown;
   method?: string;
+  headers?: Record<string, string>;
 };
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -61,7 +62,8 @@ async function attemptRefresh(): Promise<string | null> {
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: HeadersInit = {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    ...options.headers,
   };
   const token = options.token ?? localStorage.getItem(ACCESS_KEY);
   if (token) {
@@ -252,5 +254,22 @@ export function updateKwhRate(token: string, value: string): Promise<{ value: st
     token,
     method: "PUT",
     body: { value },
+  });
+}
+
+export function esp32GetStatus(token: string, deviceId: string): Promise<{ cached: boolean; data: Record<string, unknown> | null }> {
+  return request(`/esp32/${deviceId}/status`, { token });
+}
+
+export function esp32SendCommand(token: string, deviceId: string, body: Record<string, unknown>): Promise<{ ok: boolean }> {
+  return request(`/esp32/${deviceId}/command`, { token, method: "POST", body });
+}
+
+export function esp32SendAdminCommand(token: string, deviceId: string, body: Record<string, unknown>, adminPassword: string): Promise<{ ok: boolean }> {
+  return request(`/esp32/${deviceId}/command/admin`, {
+    token,
+    method: "POST",
+    body,
+    headers: { "X-Admin-Password": adminPassword },
   });
 }
