@@ -43,6 +43,17 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
     return (int)extraerFloat(key);
   };
 
+  auto extraerBool = [&](const String& key) -> bool {
+    int s = msg.indexOf("\"" + key + "\":");
+    if (s < 0) return false;
+    s = msg.indexOf(':', s) + 1;
+    int e = msg.indexOf(',', s);
+    if (e < 0) e = msg.indexOf('}', s);
+    String val = msg.substring(s, e);
+    val.trim();
+    return val == "true" || val == "1";
+  };
+
   String cmd = extraerStr("cmd");
 
   if (cmd == "status") {
@@ -56,6 +67,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
     resp += ",\"voltaje\":" + String(configApp.voltaje, 1);
     resp += ",\"calibracion\":[" + String(configApp.calibracion[0], 4) + "," + String(configApp.calibracion[1], 4) + "," + String(configApp.calibracion[2], 4) + "," + String(configApp.calibracion[3], 4) + "]";
     resp += ",\"noiseFloor\":[" + String(configApp.noiseFloor[0], 4) + "," + String(configApp.noiseFloor[1], 4) + "," + String(configApp.noiseFloor[2], 4) + "," + String(configApp.noiseFloor[3], 4) + "]";
+    resp += ",\"canales\":[" + String(configApp.canalesHabilitados[0] ? "true" : "false") + "," + String(configApp.canalesHabilitados[1] ? "true" : "false") + "," + String(configApp.canalesHabilitados[2] ? "true" : "false") + "," + String(configApp.canalesHabilitados[3] ? "true" : "false") + "]";
     resp += "}}";
   } else if (cmd == "reiniciar") {
     publicarRespuestaMQTT("{\"cmd\":\"reiniciar\",\"ok\":true}");
@@ -110,6 +122,16 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
       resp = "{\"cmd\":\"voltaje\",\"ok\":true,\"valor\":" + String(valor, 1) + "}";
     } else {
       resp = "{\"cmd\":\"voltaje\",\"ok\":false,\"error\":\"parametros invalidos\"}";
+    }
+  } else if (cmd == "habilitar_canal") {
+    int canal = extraerInt("canal");
+    bool habilitado = extraerBool("habilitado");
+    if (canal >= 0 && canal < 4) {
+      configApp.canalesHabilitados[canal] = habilitado;
+      guardarConfig(configApp);
+      resp = "{\"cmd\":\"habilitar_canal\",\"ok\":true,\"canal\":" + String(canal) + ",\"habilitado\":" + (habilitado ? "true" : "false") + "}";
+    } else {
+      resp = "{\"cmd\":\"habilitar_canal\",\"ok\":false,\"error\":\"canal invalido\"}";
     }
   } else {
     resp = "{\"cmd\":\"" + cmd + "\",\"ok\":false,\"error\":\"comando desconocido\"}";

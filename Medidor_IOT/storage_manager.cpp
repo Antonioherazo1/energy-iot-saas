@@ -118,7 +118,13 @@ bool guardarConfig(const Configuracion& cfg) {
   json += "],";
   json += "\"alpha\":" + String(cfg.alpha, 4) + ",";
   json += "\"intervalo\":" + String(cfg.intervalo) + ",";
-  json += "\"voltaje\":" + String(cfg.voltaje, 1);
+  json += "\"voltaje\":" + String(cfg.voltaje, 1) + ",";
+  json += "\"canales\":[";
+  for (int i = 0; i < 4; i++) {
+    if (i > 0) json += ",";
+    json += cfg.canalesHabilitados[i] ? "true" : "false";
+  }
+  json += "]";
   json += "}";
   f.print(json);
   f.close();
@@ -155,6 +161,21 @@ bool cargarConfig(Configuracion& cfg) {
 
   extraerArr("calibracion", cfg.calibracion);
   extraerArr("noiseFloor", cfg.noiseFloor);
+
+  {
+    int s = json.indexOf("\"canales\":[");
+    if (s >= 0) {
+      s = json.indexOf('[', s) + 1;
+      for (int i = 0; i < 4; i++) {
+        int e = json.indexOf(',', s);
+        if (e < 0) e = json.indexOf(']', s);
+        String val = json.substring(s, e);
+        val.trim();
+        cfg.canalesHabilitados[i] = (val == "true");
+        s = e + 1;
+      }
+    }
+  }
 
   float v = extraerFloat("alpha");
   if (v >= 0) cfg.alpha = v;

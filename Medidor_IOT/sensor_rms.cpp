@@ -43,6 +43,11 @@ float leerCanal(int canal) {
 
 void leerTodos(float* salida) {
   for (int i = 0; i < 4; i++) {
+    if (!configApp.canalesHabilitados[i]) {
+      corrienteFiltrada[i] = 0;
+      salida[i] = 0;
+      continue;
+    }
     float irms = leerCanal(i);
     corrienteFiltrada[i] = configApp.alpha * irms + (1 - configApp.alpha) * corrienteFiltrada[i];
 

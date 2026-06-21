@@ -29,6 +29,7 @@ inline const int INTERVALO_DEFAULT = 2000;
 struct Configuracion {
   float calibracion[4];
   float noiseFloor[4];
+  bool canalesHabilitados[4];
   float alpha;
   int intervalo;
   float voltaje;
@@ -37,6 +38,7 @@ struct Configuracion {
     for (int i = 0; i < 4; i++) {
       calibracion[i] = CALIB_DEFAULT;
       noiseFloor[i] = NOISE_FLOOR_DEFAULT;
+      canalesHabilitados[i] = true;
     }
     alpha = ALPHA_DEFAULT;
     intervalo = INTERVALO_DEFAULT;
