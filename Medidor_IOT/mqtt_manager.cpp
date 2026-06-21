@@ -17,12 +17,13 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
     msg += (char)payload[i];
   }
 
+  Serial.print("MQTT recv: "); Serial.println(msg);
   String resp;
 
   auto extraerStr = [&](const String& key) -> String {
     int s = msg.indexOf("\"" + key + "\":\"");
     if (s < 0) return "";
-    s = msg.indexOf('"', s + key.length() + 4) + 1;
+    s = s + key.length() + 4;
     int e = msg.indexOf('"', s);
     if (e < 0) return "";
     return msg.substring(s, e);
@@ -55,6 +56,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
   };
 
   String cmd = extraerStr("cmd");
+  Serial.print("cmd extraido: \""); Serial.print(cmd); Serial.println("\"");
 
   if (cmd == "status") {
     resp = "{\"cmd\":\"status\",\"uptime\":" + String(millis() / 1000);
@@ -138,6 +140,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
   }
 
   if (resp.length() > 0) {
+    Serial.print("Respuesta: "); Serial.println(resp);
     publicarRespuestaMQTT(resp);
   }
 }

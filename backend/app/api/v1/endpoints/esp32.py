@@ -17,6 +17,14 @@ class CommandPayload(BaseModel):
     habilitado: bool | None = None
 
 
+@router.get("/diagnostic")
+async def diagnostic(user=Depends(get_current_user)):
+    return {
+        "configs": mqtt_service.get_all_configs(),
+        "responses": mqtt_service.get_all_responses(),
+    }
+
+
 @router.get("/{device_id}/status")
 async def get_device_status(device_id: str, user=Depends(get_current_user)):
     config = mqtt_service.get_device_config(device_id)
