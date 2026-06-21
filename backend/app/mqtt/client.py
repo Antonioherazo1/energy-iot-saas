@@ -137,7 +137,9 @@ class MQTTService:
                 print(f"[MQTT] Config cached for device {device_id}")
 
     def publish_command(self, device_id: str, payload: str) -> None:
-        self.client.publish(f"energia/comando/{device_id}", payload, qos=1)
+        print(f"[MQTT] publish_command topic=energia/comando/{device_id} payload={payload!r}", flush=True)
+        info = self.client.publish(f"energia/comando/{device_id}", payload, qos=1)
+        print(f"[MQTT] publish result: {info.rc if hasattr(info, 'rc') else '?'}", flush=True)
 
     def get_device_config(self, device_id: str) -> dict | None:
         with self._lock:
