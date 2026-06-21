@@ -1025,18 +1025,31 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   ))}
                 </div>
                 {(() => {
-                  let maxGap = 0;
+                  const gapSegments: string[] = [];
                   if (showGaps && currentBuffer.length > 1) {
-                    for (let i = 1; i < currentBuffer.length; i++) {
-                      const diff = (new Date(currentBuffer[i].recorded_at ?? "").getTime() - new Date(currentBuffer[i - 1].recorded_at ?? "").getTime()) / 1000;
-                      if (diff > maxGap) maxGap = diff;
+                    const firstT = new Date(currentBuffer[0].recorded_at ?? "").getTime();
+                    const lastT = new Date(currentBuffer[currentBuffer.length - 1].recorded_at ?? "").getTime();
+                    const rangeMin = Math.max(1, Math.round((lastT - firstT) / 60000));
+                    if (rangeMin > 0) {
+                      for (let m = 0; m < rangeMin; m++) {
+                        const segStart = firstT + m * 60000;
+                        const segEnd = segStart + 60000;
+                        const hasData = currentBuffer.some((d) => {
+                          const t = new Date(d.recorded_at ?? "").getTime();
+                          return t >= segStart && t < segEnd;
+                        });
+                        gapSegments.push(hasData ? "#22c55e" : "#dc2626");
+                      }
                     }
                   }
-                  const gapColor = maxGap < 10 ? "#22c55e" : maxGap < 60 ? "#d97706" : "#dc2626";
                   return (
                     <>
-                      <button className="rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Gap</button>
-                      {showGaps && maxGap > 0 && <span className="ml-1 text-xs" style={{ color: gapColor }}>máx: {Math.round(maxGap)}s</span>}
+                      <button className="rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Señal</button>
+                      {showGaps && gapSegments.length > 0 && (
+                        <div className="ml-1 flex h-3 gap-px" style={{ width: Math.min(gapSegments.length * 6, 300) }}>
+                          {gapSegments.map((c, i) => <div key={i} className="h-full flex-1" style={{ background: c, minWidth: 1 }} />)}
+                        </div>
+                      )}
                       <span className="ml-auto">{currentBuffer.length} registros · actualiza cada 5s</span>
                     </>
                   );
