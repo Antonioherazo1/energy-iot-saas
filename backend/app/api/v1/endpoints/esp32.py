@@ -7,7 +7,7 @@ from app.mqtt.client import mqtt_service
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/esp32", tags=["esp32"])
+router = APIRouter(tags=["esp32"])
 
 
 class CommandPayload(BaseModel):
@@ -24,6 +24,14 @@ async def get_device_status(device_id: str, user=Depends(get_current_user)):
         mqtt_service.request_status(device_id)
         return {"cached": False, "data": None}
     return {"cached": True, "data": config}
+
+
+@router.get("/{device_id}/last-response")
+async def get_last_response(device_id: str, user=Depends(get_current_user)):
+    resp = mqtt_service.get_last_response(device_id)
+    if resp is None:
+        return {"response": None}
+    return resp
 
 
 @router.post("/{device_id}/command")

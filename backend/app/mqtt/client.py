@@ -18,6 +18,7 @@ class MQTTService:
     def __init__(self) -> None:
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self._device_configs: dict[str, dict] = {}
+        self._last_responses: dict[str, dict] = {}
         self._lock = threading.Lock()
 
     def start(self) -> None:
@@ -115,6 +116,11 @@ class MQTTService:
     def _handle_response(self, payload_dict: dict, topic: str) -> None:
         device_id = topic.split("/")[-1]
         cmd = payload_dict.get("cmd", "")
+        with self._lock:
+            self._last_responses[device_id] = {
+                "response": payload_dict,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
         if cmd == "status":
             settings_data = payload_dict.get("settings", {})
             if settings_data:
@@ -135,6 +141,10 @@ class MQTTService:
     def get_device_config(self, device_id: str) -> dict | None:
         with self._lock:
             return self._device_configs.get(device_id)
+
+    def get_last_response(self, device_id: str) -> dict | None:
+        with self._lock:
+            return self._last_responses.get(device_id)
 
     def request_status(self, device_id: str) -> None:
         self.publish_command(device_id, '{"cmd":"status"}')

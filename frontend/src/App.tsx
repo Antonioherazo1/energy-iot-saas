@@ -1583,13 +1583,18 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </section>
         </div>
       )}
-      {sideSection === "esp32" && selectedDeviceId && (
-        <Esp32ConfigPanel
-          token={token}
-          deviceId={selectedDeviceId}
-          onClose={() => setSideSection(null)}
-        />
-      )}
+      {sideSection === "esp32" && selectedDeviceId && (() => {
+        const dev = devices.find(d => d.device_id === selectedDeviceId);
+        const mac = dev?.code ?? selectedDeviceId;
+        return (
+          <Esp32ConfigPanel
+            token={token}
+            deviceCode={mac}
+            deviceName={dev?.name ?? mac}
+            onClose={() => setSideSection(null)}
+          />
+        );
+      })()}
     </main>
   );
 }
@@ -1637,7 +1642,7 @@ function SideMenuItem({ icon, label, onClick }: { icon: ReactNode; label: string
   );
 }
 
-function Esp32ConfigPanel({ token, deviceId, onClose }: { token: string; deviceId: string; onClose: () => void }) {
+function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: string; deviceCode: string; deviceName: string; onClose: () => void }) {
   const [config, setConfig] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
@@ -1656,7 +1661,7 @@ function Esp32ConfigPanel({ token, deviceId, onClose }: { token: string; deviceI
     setLoading(true);
     setMsg("");
     try {
-      const res = await esp32GetStatus(token, deviceId);
+      const res = await esp32GetStatus(token, deviceCode);
       if (res.data?.settings) {
         const s = res.data.settings as Record<string, any>;
         setConfig(res.data);
@@ -1677,14 +1682,14 @@ function Esp32ConfigPanel({ token, deviceId, onClose }: { token: string; deviceI
       setMsg("Error: " + (e.message ?? "desconocido"));
     }
     setLoading(false);
-  }, [token, deviceId]);
+  }, [token, deviceCode]);
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
   const send = async (cmd: string, extra: Record<string, unknown> = {}) => {
     setMsg("");
     try {
-      await esp32SendCommand(token, deviceId, { cmd, ...extra });
+      await esp32SendCommand(token, deviceCode, { cmd, ...extra });
       setMsg("Comando enviado");
       setTimeout(loadStatus, 1000);
     } catch (e: any) {
@@ -1696,7 +1701,7 @@ function Esp32ConfigPanel({ token, deviceId, onClose }: { token: string; deviceI
     if (!adminPass) { setMsg("Ingresa la contraseña de administrador"); return; }
     setMsg("");
     try {
-      await esp32SendAdminCommand(token, deviceId, { cmd, ...extra }, adminPass);
+      await esp32SendAdminCommand(token, deviceCode, { cmd, ...extra }, adminPass);
       setMsg("Comando admin enviado");
       setTimeout(loadStatus, 1000);
     } catch (e: any) {
@@ -1713,7 +1718,7 @@ function Esp32ConfigPanel({ token, deviceId, onClose }: { token: string; deviceI
         </div>
 
         <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
-          <span className="truncate font-mono">{deviceId}</span>
+          <span className="truncate font-mono">{deviceName}</span>
           {config && (
             <>
               <span>RSSI: {config.rssi ?? "?"}</span>
