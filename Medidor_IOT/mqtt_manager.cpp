@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#define MQTT_MAX_PACKET_SIZE 512
 #include <PubSubClient.h>
 #include "mqtt_manager.h"
 #include "storage_manager.h"
