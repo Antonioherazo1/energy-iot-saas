@@ -28,7 +28,7 @@ uint32_t obtenerUnixTime() {
 
 String formatearEpoch(uint32_t epoch) {
   time_t t = (time_t)epoch;
-  struct tm* timeinfo = localtime(&t);
+  struct tm* timeinfo = gmtime(&t);
   if (!timeinfo) {
     return "2000-01-01 00:00:00";
   }
