@@ -1721,13 +1721,23 @@ function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: s
 
         <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
           <span className="truncate font-mono">{deviceName}</span>
-          {config && (
-            <>
-              <span>RSSI: {config.rssi ?? "?"}</span>
-              <span>Buf: {config.buffer ?? "?"}</span>
-              <span>{config.uptime != null ? Math.floor(config.uptime / 3600) + "h" : ""}</span>
-            </>
-          )}
+          {config && (() => {
+            const rssi = config.rssi ?? -100;
+            const bars = rssi >= -50 ? 4 : rssi >= -60 ? 3 : rssi >= -70 ? 2 : rssi >= -80 ? 1 : 0;
+            const barColor = rssi >= -60 ? "bg-green-500" : rssi >= -70 ? "bg-yellow-500" : "bg-red-500";
+            const uptimeH = config.uptime != null ? Math.floor(config.uptime / 3600) : 0;
+            const uptimeM = config.uptime != null ? Math.floor((config.uptime % 3600) / 60) : 0;
+            return (
+              <>
+                <span className="inline-flex items-end gap-px h-4" title={"RSSI: " + rssi + " dBm"}>
+                  {[1, 2, 3, 4].map((i) => (
+                    <span key={i} className={`w-1 ${i <= bars ? barColor : "bg-slate-300"} ${i === 1 ? "h-1" : i === 2 ? "h-2" : i === 3 ? "h-3" : "h-4"}`} />
+                  ))}
+                </span>
+                <span>{uptimeH > 0 ? uptimeH + "h " : ""}{uptimeM > 0 || uptimeH === 0 ? uptimeM + "m" : ""} activo</span>
+              </>
+            );
+          })()}
           <button className="ml-auto rounded bg-slate-100 px-2 py-0.5 text-xs hover:bg-slate-200 disabled:opacity-50" disabled={loading} onClick={loadStatus} type="button">Refrescar</button>
         </div>
 
