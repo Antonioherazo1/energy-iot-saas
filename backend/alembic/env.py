@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
-from app.models import alert, channel, device, organization, setting, telemetry, user
+from app.models import alert, channel, device, organization, raw_telemetry, setting, telemetry, user
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

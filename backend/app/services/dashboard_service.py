@@ -9,11 +9,12 @@ from sqlalchemy.orm import Session, aliased
 from app.models.channel import DeviceChannel
 from app.models.device import Device
 from app.models.organization import OrganizationMember
+from app.models.raw_telemetry import RawTelemetry
 from app.models.telemetry import Telemetry
 from app.models.user import User
 
 COL_TZ_OFFSET = func.make_interval(0, 0, 0, 0, 5)
-MAX_DELTA_SECONDS = 60
+MAX_DELTA_SECONDS = 120
 
 
 
@@ -58,22 +59,22 @@ def get_device_status(
 def latest_telemetry_query(organization_ids: list[uuid.UUID]) -> Select:
     latest = (
         select(
-            Telemetry.device_id,
-            Telemetry.recorded_at,
-            Telemetry.voltage,
-            Telemetry.energy_kwh,
-            Telemetry.frequency,
-            Telemetry.power_factor,
-            Telemetry.ch1,
-            Telemetry.ch2,
-            Telemetry.ch3,
-            Telemetry.ch4,
-            Telemetry.ch1_energy_kwh,
-            Telemetry.ch2_energy_kwh,
-            Telemetry.ch3_energy_kwh,
-            Telemetry.ch4_energy_kwh,
+            RawTelemetry.device_id,
+            RawTelemetry.recorded_at,
+            RawTelemetry.voltage,
+            RawTelemetry.energy_kwh,
+            RawTelemetry.frequency,
+            RawTelemetry.power_factor,
+            RawTelemetry.ch1,
+            RawTelemetry.ch2,
+            RawTelemetry.ch3,
+            RawTelemetry.ch4,
+            RawTelemetry.ch1_energy_kwh,
+            RawTelemetry.ch2_energy_kwh,
+            RawTelemetry.ch3_energy_kwh,
+            RawTelemetry.ch4_energy_kwh,
             func.row_number()
-            .over(partition_by=Telemetry.device_id, order_by=Telemetry.recorded_at.desc())
+            .over(partition_by=RawTelemetry.device_id, order_by=RawTelemetry.recorded_at.desc())
             .label("row_number"),
         )
         .subquery()
@@ -412,23 +413,23 @@ def get_channel_time_series(
 
     rows = db.execute(
         select(
-            Telemetry.recorded_at,
+            RawTelemetry.recorded_at,
             Device.name.label("device_name"),
-            Telemetry.ch1,
-            Telemetry.ch2,
-            Telemetry.ch3,
-            Telemetry.ch4,
-            Telemetry.ch1_energy_kwh,
-            Telemetry.ch2_energy_kwh,
-            Telemetry.ch3_energy_kwh,
-            Telemetry.ch4_energy_kwh,
+            RawTelemetry.ch1,
+            RawTelemetry.ch2,
+            RawTelemetry.ch3,
+            RawTelemetry.ch4,
+            RawTelemetry.ch1_energy_kwh,
+            RawTelemetry.ch2_energy_kwh,
+            RawTelemetry.ch3_energy_kwh,
+            RawTelemetry.ch4_energy_kwh,
         )
-        .join(Device, Device.id == Telemetry.device_id)
+        .join(Device, Device.id == RawTelemetry.device_id)
         .where(
             Device.organization_id.in_(organization_ids),
-            Telemetry.ch1.is_not(None),
+            RawTelemetry.ch1.is_not(None),
         )
-        .order_by(Telemetry.recorded_at.desc())
+        .order_by(RawTelemetry.recorded_at.desc())
         .limit(max(1, min(limit, 500)))
     )
     result = [dict(row._mapping) for row in rows]
@@ -450,18 +451,18 @@ def get_realtime_currents(
     since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
     rows = db.execute(
         select(
-            Telemetry.recorded_at,
-            Telemetry.ch1,
-            Telemetry.ch2,
-            Telemetry.ch3,
-            Telemetry.ch4,
+            RawTelemetry.recorded_at,
+            RawTelemetry.ch1,
+            RawTelemetry.ch2,
+            RawTelemetry.ch3,
+            RawTelemetry.ch4,
         )
         .where(
-            Telemetry.device_id == device.id,
-            Telemetry.recorded_at >= since,
-            Telemetry.ch1.is_not(None),
+            RawTelemetry.device_id == device.id,
+            RawTelemetry.recorded_at >= since,
+            RawTelemetry.ch1.is_not(None),
         )
-        .order_by(Telemetry.recorded_at)
+        .order_by(RawTelemetry.recorded_at)
     )
     return [dict(row._mapping) for row in rows]
 
