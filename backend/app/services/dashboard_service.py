@@ -13,6 +13,8 @@ from app.models.telemetry import Telemetry
 from app.models.user import User
 
 COL_TZ_OFFSET = func.make_interval(0, 0, 0, 0, 5)
+MAX_DELTA_SECONDS = 60
+
 
 
 def get_accessible_organization_ids(db: Session, user: User, organization_id: uuid.UUID | None = None) -> list[uuid.UUID]:
@@ -192,18 +194,21 @@ def get_billing_monthly_energy(
         partition_by=Telemetry.device_id,
         order_by=Telemetry.recorded_at,
     )
-    delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+    prev_delta_seconds = func.extract("epoch", Telemetry.recorded_at - prev_ts)
+    delta_expr = prev_delta_seconds / 3600 / 1000
     energy_delta = dynamic_power * func.cast(delta_expr, Numeric(20, 10))
 
     shifted_ts = Telemetry.recorded_at - func.make_interval(0, 0, 0, shift_days) - COL_TZ_OFFSET
     shifted_bucket = func.date_trunc("month", shifted_ts).label("period")
+
+    min_date = datetime.now(timezone.utc) - timedelta(days=safe_limit * 45)
 
     cte = (
         select(
             shifted_bucket,
             Telemetry.device_id,
             case(
-                (and_(prev_ts.is_not(None), energy_delta > 0), energy_delta),
+                (and_(prev_ts.is_not(None), energy_delta > 0, prev_delta_seconds <= MAX_DELTA_SECONDS), energy_delta),
                 else_=0,
             ).label("energy_delta"),
         )
@@ -214,6 +219,7 @@ def get_billing_monthly_energy(
         .outerjoin(c4, and_(c4.device_id == Telemetry.device_id, c4.channel_number == 4, c4.is_active == True))
         .where(
             Device.organization_id.in_(organization_ids),
+            Telemetry.recorded_at >= min_date,
         )
         .cte("energy_cte")
     )
@@ -272,7 +278,8 @@ def get_billing_daily_per_channel(
         partition_by=Telemetry.device_id,
         order_by=Telemetry.recorded_at,
     )
-    delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+    prev_delta_seconds = func.extract("epoch", Telemetry.recorded_at - prev_ts)
+    delta_expr = prev_delta_seconds / 3600 / 1000
     delta_numeric = func.cast(delta_expr, Numeric(20, 10))
 
     bucket = func.date_trunc("day", Telemetry.recorded_at - COL_TZ_OFFSET).label("period")
@@ -280,10 +287,10 @@ def get_billing_daily_per_channel(
     cte = (
         select(
             bucket,
-            case((and_(prev_ts.is_not(None), ch_power_1 * delta_numeric > 0), ch_power_1 * delta_numeric), else_=0).label("en_ch1"),
-            case((and_(prev_ts.is_not(None), ch_power_2 * delta_numeric > 0), ch_power_2 * delta_numeric), else_=0).label("en_ch2"),
-            case((and_(prev_ts.is_not(None), ch_power_3 * delta_numeric > 0), ch_power_3 * delta_numeric), else_=0).label("en_ch3"),
-            case((and_(prev_ts.is_not(None), ch_power_4 * delta_numeric > 0), ch_power_4 * delta_numeric), else_=0).label("en_ch4"),
+            case((and_(prev_ts.is_not(None), ch_power_1 * delta_numeric > 0, prev_delta_seconds <= MAX_DELTA_SECONDS), ch_power_1 * delta_numeric), else_=0).label("en_ch1"),
+            case((and_(prev_ts.is_not(None), ch_power_2 * delta_numeric > 0, prev_delta_seconds <= MAX_DELTA_SECONDS), ch_power_2 * delta_numeric), else_=0).label("en_ch2"),
+            case((and_(prev_ts.is_not(None), ch_power_3 * delta_numeric > 0, prev_delta_seconds <= MAX_DELTA_SECONDS), ch_power_3 * delta_numeric), else_=0).label("en_ch3"),
+            case((and_(prev_ts.is_not(None), ch_power_4 * delta_numeric > 0, prev_delta_seconds <= MAX_DELTA_SECONDS), ch_power_4 * delta_numeric), else_=0).label("en_ch4"),
         )
         .join(Device, Device.id == Telemetry.device_id)
         .outerjoin(c1, and_(c1.device_id == Telemetry.device_id, c1.channel_number == 1, c1.is_active == True))
@@ -351,7 +358,8 @@ def get_billing_current_daily(
         partition_by=Telemetry.device_id,
         order_by=Telemetry.recorded_at,
     )
-    delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+    prev_delta_seconds = func.extract("epoch", Telemetry.recorded_at - prev_ts)
+    delta_expr = prev_delta_seconds / 3600 / 1000
     energy_delta = dynamic_power * func.cast(delta_expr, Numeric(20, 10))
 
     bucket = func.date_trunc("day", Telemetry.recorded_at - COL_TZ_OFFSET).label("period")
@@ -361,7 +369,7 @@ def get_billing_current_daily(
             bucket,
             Telemetry.device_id,
             case(
-                (and_(prev_ts.is_not(None), energy_delta > 0), energy_delta),
+                (and_(prev_ts.is_not(None), energy_delta > 0, prev_delta_seconds <= MAX_DELTA_SECONDS), energy_delta),
                 else_=0,
             ).label("energy_delta"),
         )
@@ -543,7 +551,8 @@ def recalculate_daily_energy(
         partition_by=Telemetry.device_id,
         order_by=Telemetry.recorded_at,
     )
-    delta_expr = func.extract("epoch", Telemetry.recorded_at - prev_ts) / 3600 / 1000
+    prev_delta_seconds = func.extract("epoch", Telemetry.recorded_at - prev_ts)
+    delta_expr = prev_delta_seconds / 3600 / 1000
     energy_delta = total_power * func.cast(delta_expr, Numeric(20, 10))
 
     bucket = func.date_trunc("day", Telemetry.recorded_at - COL_TZ_OFFSET).label("period")
@@ -553,7 +562,7 @@ def recalculate_daily_energy(
             bucket,
             Telemetry.device_id,
             case(
-                (and_(prev_ts.is_not(None), energy_delta > 0), energy_delta),
+                (and_(prev_ts.is_not(None), energy_delta > 0, prev_delta_seconds <= MAX_DELTA_SECONDS), energy_delta),
                 else_=0,
             ).label("energy_delta"),
         )
