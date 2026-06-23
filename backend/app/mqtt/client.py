@@ -34,12 +34,11 @@ class MQTTService:
         self.client.disconnect()
 
     def _on_connect(self, client: mqtt.Client, userdata, flags, reason_code, properties) -> None:
-        print(f"[MQTT] _on_connect reason_code={reason_code!r} type={type(reason_code).__name__}", flush=True)
         if reason_code == 0:
             client.subscribe(settings.mqtt_topic, qos=0)
             client.subscribe(settings.esp32_topic, qos=0)
             client.subscribe("energia/respuesta/+", qos=0)
-            print(f"[MQTT] Subscribed to {settings.mqtt_topic}, {settings.esp32_topic}, energia/respuesta/+", flush=True)
+            logger.info("MQTT conectado — suscrito a %s, %s, energia/respuesta/+", settings.mqtt_topic, settings.esp32_topic)
         else:
             print(f"[MQTT] Connection failed: {reason_code}", flush=True)
 
@@ -80,7 +79,6 @@ class MQTTService:
 
     def _on_message(self, client: mqtt.Client, userdata, message: mqtt.MQTTMessage) -> None:
         topic = message.topic
-        print(f"[MQTT] _on_message topic={topic!r} payload={message.payload!r}", flush=True)
 
         try:
             payload_dict = json.loads(message.payload.decode("utf-8"))
@@ -89,7 +87,7 @@ class MQTTService:
             return
 
         if topic.startswith("energia/respuesta/"):
-            print(f"[MQTT] respuesta recibida en {topic}: {payload_dict}", flush=True)
+            logger.info("Respuesta MQTT recibida en %s", topic)
             self._handle_response(payload_dict, topic)
             return
 
@@ -114,16 +112,14 @@ class MQTTService:
 
     def _handle_response(self, payload_dict: dict, topic: str) -> None:
         device_id = topic.split("/")[-1]
-        cmd = payload_dict.get("cmd", "")
         with self._lock:
             self._last_responses[device_id] = {
                 "response": payload_dict,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
-        print(f"[MQTT] _handle_response device={device_id} cmd={cmd!r}")
-        if cmd == "status":
+        logger.info("Respuesta MQTT procesada para %s: cmd=%s", device_id, payload_dict.get("cmd", ""))
+        if payload_dict.get("cmd") == "status":
             settings_data = payload_dict.get("settings", {})
-            print(f"[MQTT] settings_data={settings_data!r}")
             if settings_data:
                 with self._lock:
                     self._device_configs[device_id] = {
@@ -134,12 +130,11 @@ class MQTTService:
                         "firmware": payload_dict.get("firmware"),
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     }
-                print(f"[MQTT] Config cached for device {device_id}")
+                logger.info("Config cacheado para %s", device_id)
 
     def publish_command(self, device_id: str, payload: str) -> None:
-        print(f"[MQTT] publish_command topic=energia/comando/{device_id} payload={payload!r}", flush=True)
-        info = self.client.publish(f"energia/comando/{device_id}", payload, qos=1)
-        print(f"[MQTT] publish result: {info.rc if hasattr(info, 'rc') else '?'}", flush=True)
+        logger.info("Publicando comando MQTT a energia/comando/%s: %s", device_id, payload)
+        self.client.publish(f"energia/comando/{device_id}", payload, qos=1)
 
     def get_device_config(self, device_id: str) -> dict | None:
         with self._lock:

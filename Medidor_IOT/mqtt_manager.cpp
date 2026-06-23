@@ -179,8 +179,7 @@ void publicarMQTT(const String& payload) {
 
 void publicarRespuestaMQTT(const String& payload) {
   String topic = String(TOPIC_RESPUESTA) + deviceID;
-  bool ok = client.publish(topic.c_str(), payload.c_str());
-  Serial.print("publicarRespuestaMQTT topic="); Serial.print(topic); Serial.print(" len="); Serial.print(payload.length()); Serial.print(" ok="); Serial.println(ok ? "true" : "FALSE");
+  client.publish(topic.c_str(), payload.c_str());
 }
 
 void loopMQTT() {

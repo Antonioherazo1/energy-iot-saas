@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 import asyncio
 
@@ -9,16 +10,18 @@ from app.core.config import settings
 from app.mqtt.client import mqtt_service
 from app.websockets.manager import websocket_manager
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[lifespan] Setting up WebSocket loop...", flush=True)
+    logger.info("Iniciando WebSocket loop...")
     websocket_manager.set_loop(asyncio.get_running_loop())
-    print(f"[lifespan] MQTT enabled: {settings.mqtt_enabled}", flush=True)
+    logger.info("MQTT habilitado: %s", settings.mqtt_enabled)
     if settings.mqtt_enabled:
-        print("[lifespan] Starting MQTT service...", flush=True)
+        logger.info("Iniciando servicio MQTT...")
         mqtt_service.start()
-        print("[lifespan] MQTT service started", flush=True)
+        logger.info("Servicio MQTT iniciado")
     yield
     if settings.mqtt_enabled:
         mqtt_service.stop()
