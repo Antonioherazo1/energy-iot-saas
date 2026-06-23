@@ -1052,15 +1052,15 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     }
                   }
                   return (
-                    <>
+                    <div className="flex items-center gap-3">
                       <button className="rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Señal</button>
                       {showGaps && gapSegments.length > 0 && (
-                        <div className="ml-1 flex h-3 gap-px" style={{ width: Math.min(gapSegments.length * 6, 300) }}>
+                        <div className="flex h-3 gap-px" style={{ width: Math.min(gapSegments.length * 6, 300) }}>
                           {gapSegments.map((c, i) => <div key={i} className="h-full flex-1" style={{ background: c, minWidth: 1 }} />)}
                         </div>
                       )}
-                      <span className="ml-auto">{currentBuffer.length} registros · actualiza cada 5s</span>
-                    </>
+                      <span>{currentBuffer.length} registros · actualiza cada 5s</span>
+                    </div>
                   );
                 })()}
               </div>
