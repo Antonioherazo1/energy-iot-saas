@@ -1692,8 +1692,7 @@ function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: s
     setMsg("");
     try {
       await esp32SendCommand(token, deviceCode, { cmd, ...extra });
-      setMsg("Comando enviado");
-      setTimeout(loadStatus, 1000);
+      setMsg("Comando enviado. Presiona Refrescar para ver cambios.");
     } catch (e: any) {
       setMsg("Error: " + (e.message ?? "desconocido"));
     }
@@ -1704,8 +1703,7 @@ function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: s
     setMsg("");
     try {
       await esp32SendAdminCommand(token, deviceCode, { cmd, ...extra }, adminPass);
-      setMsg("Comando admin enviado");
-      setTimeout(loadStatus, 1000);
+      setMsg("Comando admin enviado. Presiona Refrescar para ver cambios.");
     } catch (e: any) {
       setMsg("Error: " + (e.message ?? "desconocido"));
     }
