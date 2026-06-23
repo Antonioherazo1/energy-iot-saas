@@ -115,12 +115,12 @@ def get_latest_telemetry(db: Session, user: User, organization_id: uuid.UUID | N
     for row in rows:
         d = dict(row._mapping)
         power = Decimal("0")
-        voltage = d.get("voltage") or Decimal("0")
+        voltage = Decimal(str(d.get("voltage") or 0)) or Decimal("0")
         for ch_num in range(1, 5):
             ch_key = f"ch{ch_num}"
             ch_current = d.get(ch_key)
-            if ch_current is not None:
-                power += ch_current * voltage
+            if ch_current is not None and ch_current != 0:
+                power += Decimal(str(ch_current)) * voltage
         d["power"] = power
         result.append(d)
     return result
