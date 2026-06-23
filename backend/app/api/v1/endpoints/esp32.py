@@ -27,7 +27,16 @@ async def diagnostic(user=Depends(get_current_user)):
 
 @router.get("/{device_id}/status")
 async def get_device_status(device_id: str, user=Depends(get_current_user)):
+    import json
     config = mqtt_service.get_device_config(device_id)
+    if config is not None:
+        updated = config.get("updated_at")
+        if updated:
+            from datetime import datetime, timezone
+            updated_dt = datetime.fromisoformat(updated)
+            age = (datetime.now(timezone.utc) - updated_dt).total_seconds()
+            if age > 60:
+                config = None
     if config is None:
         mqtt_service.request_status(device_id)
         return {"cached": False, "data": None}
