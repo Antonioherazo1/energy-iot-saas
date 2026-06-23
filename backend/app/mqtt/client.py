@@ -1,7 +1,7 @@
 import json
 import logging
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 from pydantic import ValidationError
@@ -9,12 +9,9 @@ from pydantic import ValidationError
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.schemas.telemetry import TelemetryIn
-from app.services.telemetry_service import InvalidDeviceKeyError, aggregate_raw_telemetry, cleanup_raw_telemetry, store_raw_telemetry
+from app.services.telemetry_service import InvalidDeviceKeyError, store_raw_telemetry
 
 logger = logging.getLogger(__name__)
-
-_AGGREGATION_INTERVAL = 60
-_CLEANUP_INTERVAL = 3600
 
 
 class MQTTService:
@@ -23,7 +20,6 @@ class MQTTService:
         self._device_configs: dict[str, dict] = {}
         self._last_responses: dict[str, dict] = {}
         self._lock = threading.Lock()
-        self._running = False
 
     def start(self) -> None:
         if settings.mqtt_username:
@@ -32,39 +28,10 @@ class MQTTService:
         self.client.on_message = self._on_message
         self.client.connect(settings.mqtt_host, settings.mqtt_port, keepalive=30)
         self.client.loop_start()
-        self._running = True
-        self._bg_thread = threading.Thread(target=self._background_loop, daemon=True)
-        self._bg_thread.start()
 
     def stop(self) -> None:
-        self._running = False
         self.client.loop_stop()
         self.client.disconnect()
-
-    def _background_loop(self) -> None:
-        last_agg = datetime.now(timezone.utc)
-        last_cleanup = last_agg
-        while self._running:
-            threading.Event().wait(10)
-            now = datetime.now(timezone.utc)
-            if (now - last_agg).total_seconds() >= _AGGREGATION_INTERVAL:
-                try:
-                    with SessionLocal() as db:
-                        n = aggregate_raw_telemetry(db)
-                        if n:
-                            logger.info("Agregados %d registros raw a telemetry", n)
-                except Exception:
-                    logger.exception("Error en agregacion raw")
-                last_agg = now
-            if (now - last_cleanup).total_seconds() >= _CLEANUP_INTERVAL:
-                try:
-                    with SessionLocal() as db:
-                        n = cleanup_raw_telemetry(db)
-                        if n:
-                            logger.info("Limpiados %d registros raw antiguos", n)
-                except Exception:
-                    logger.exception("Error en limpieza raw")
-                last_cleanup = now
 
     def _on_connect(self, client: mqtt.Client, userdata, flags, reason_code, properties) -> None:
         if reason_code == 0:

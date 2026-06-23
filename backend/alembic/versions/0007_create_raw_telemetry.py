@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 
 revision = "0007"
-down_revision = "0006_drop_current_power_columns"
+down_revision = "0006"
 branch_labels = None
 depends_on = None
 

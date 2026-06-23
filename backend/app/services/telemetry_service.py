@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -22,7 +22,7 @@ def decimal_to_string(value):
     return str(value) if value is not None else None
 
 
-def publish_telemetry_event(device: Device, telemetry: Telemetry) -> None:
+def publish_telemetry_event(device: Device, telemetry: Telemetry | RawTelemetry) -> None:
     payload = {
         "type": "telemetry.created",
         "device_id": str(device.id),
@@ -147,7 +147,7 @@ def aggregate_raw_telemetry(db: Session) -> int:
     """Aggregate raw readings from the last complete minute into telemetry."""
     now = datetime.now(timezone.utc)
     minute_end = now.replace(second=0, microsecond=0)
-    minute_start = minute_end - __import__("datetime").timedelta(minutes=1)
+    minute_start = minute_end - timedelta(minutes=1)
 
     rows = db.execute(
         select(
@@ -208,7 +208,7 @@ def aggregate_raw_telemetry(db: Session) -> int:
 
 
 def cleanup_raw_telemetry(db: Session) -> int:
-    cutoff = datetime.now(timezone.utc) - __import__("datetime").timedelta(hours=24)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     result = db.execute(
         RawTelemetry.__table__.delete().where(RawTelemetry.recorded_at < cutoff)
     )
