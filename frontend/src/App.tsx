@@ -1658,6 +1658,7 @@ function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: s
   const [calibracion, setCalibracion] = useState<number[]>([1, 1, 1, 1]);
   const [alpha, setAlpha] = useState(0.2);
   const [intervalo, setIntervalo] = useState(2000);
+  const initialized = useRef(false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -1667,12 +1668,15 @@ function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: s
       if (res.data?.settings) {
         const s = res.data.settings as Record<string, any>;
         setConfig(res.data);
-        setNoiseFloor(s.noiseFloor as number[]);
-        setVoltaje(s.voltaje as number);
-        setCanales(s.canales as boolean[]);
-        setCalibracion(s.calibracion as number[]);
-        setAlpha(s.alpha as number);
-        setIntervalo(s.intervalo as number);
+        if (!initialized.current) {
+          initialized.current = true;
+          setNoiseFloor(s.noiseFloor as number[]);
+          setVoltaje(s.voltaje as number);
+          setCanales(s.canales as boolean[]);
+          setCalibracion(s.calibracion as number[]);
+          setAlpha(s.alpha as number);
+          setIntervalo(s.intervalo as number);
+        }
         if (!res.cached) {
           setMsg("Solicitando estado... espera unos segundos y presiona 'Refrescar'");
         }
