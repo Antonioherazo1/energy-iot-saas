@@ -21,8 +21,8 @@ class Settings(BaseSettings):
 
     jwt_secret_key: str = "change_me_generate_64_chars"
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 15
-    refresh_token_expire_days: int = 7
+    access_token_expire_minutes: int = 1440
+    refresh_token_expire_days: int = 30
 
     mqtt_enabled: bool = False
     mqtt_host: str = "localhost"
