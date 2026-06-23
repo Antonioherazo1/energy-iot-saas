@@ -1735,6 +1735,7 @@ function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: s
                   ))}
                 </span>
                 <span>{uptimeH > 0 ? uptimeH + "h " : ""}{uptimeM > 0 || uptimeH === 0 ? uptimeM + "m" : ""} activo</span>
+                {config.buffer != null && parseInt(config.buffer) > 0 && <span className="font-semibold text-amber-600">Buf: {config.buffer}</span>}
               </>
             );
           })()}
