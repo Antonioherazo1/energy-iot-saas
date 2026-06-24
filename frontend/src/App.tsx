@@ -97,10 +97,17 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [createDeviceName, setCreateDeviceName] = useState("");
   const [createDeviceCode, setCreateDeviceCode] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [completenessPct, setCompletenessPct] = useState(() => {
+    const saved = localStorage.getItem("completenessPct");
+    return saved ? Number(saved) : 60;
+  });
   const completenessThreshold = useMemo(() => {
     const maxRecordCount = Math.max(1, ...daily.map((item) => item.record_count ?? 0));
-    return Math.max(10, Math.round(maxRecordCount * 0.6));
-  }, [daily]);
+    return Math.max(10, Math.round(maxRecordCount * (completenessPct / 100)));
+  }, [daily, completenessPct]);
+  useEffect(() => {
+    localStorage.setItem("completenessPct", String(completenessPct));
+  }, [completenessPct]);
   const [loading, setLoading] = useState(false);
   const [creatingDevice, setCreatingDevice] = useState(false);
   const [error, setError] = useState("");
@@ -1378,6 +1385,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <SideMenuItem icon={<DollarSign size={18} />} label="Tarifa kWh" onClick={() => { setSideSection("kwh-rate"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Hash size={18} />} label="Decimales" onClick={() => { setSideSection("decimals"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Type size={18} />} label="Factor de fuente" onClick={() => { setSideSection("font-scale"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<Settings size={18} />} label="Validación días" onClick={() => { setSideSection("completeness"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<LogOut size={18} />} label="Salir" onClick={() => { setSideSection("logout"); setShowSideMenu(false); }} />
             </div>
           </aside>
@@ -1585,6 +1593,20 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   <button className="h-9 w-9 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={rowFontScales[key] >= 200} onClick={() => setRowFontScales((prev: Record<string, number>) => ({ ...prev, [key]: Math.min(200, prev[key] + 10) }))} type="button">+</button>
                 </div>
               ))}
+            </div>
+            <button className="mt-6 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
+          </section>
+        </div>
+      )}
+      {sideSection === "completeness" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">Validación de días</h2>
+            <p className="mb-4 text-sm text-slate-500">Porcentaje de registros mínimos para considerar un día como completo</p>
+            <div className="flex items-center justify-center gap-4">
+              <button className="h-10 w-10 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={completenessPct <= 10} onClick={() => setCompletenessPct((p) => p - 5)} type="button">−</button>
+              <span className="min-w-[80px] text-center text-2xl font-semibold">{completenessPct}%</span>
+              <button className="h-10 w-10 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={completenessPct >= 100} onClick={() => setCompletenessPct((p) => p + 5)} type="button">+</button>
             </div>
             <button className="mt-6 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
