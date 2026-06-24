@@ -97,6 +97,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [createDeviceName, setCreateDeviceName] = useState("");
   const [createDeviceCode, setCreateDeviceCode] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const completenessThreshold = useMemo(() => {
+    const maxRecordCount = Math.max(1, ...daily.map((item) => item.record_count ?? 0));
+    return Math.max(10, Math.round(maxRecordCount * 0.6));
+  }, [daily]);
   const [loading, setLoading] = useState(false);
   const [creatingDevice, setCreatingDevice] = useState(false);
   const [error, setError] = useState("");
@@ -1096,8 +1100,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const year = now.getFullYear();
               const month = String(now.getMonth() + 1).padStart(2, "0");
               const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
-              const maxRecordCount = Math.max(1, ...daily.map((item) => item.record_count ?? 0));
-              const completenessThreshold = Math.max(10, Math.round(maxRecordCount * 0.6));
               const days = Array.from({ length: daysInMonth }, (_, i) => {
                 const day = String(i + 1).padStart(2, "0");
                 const period = `${year}-${month}-${day}`;
