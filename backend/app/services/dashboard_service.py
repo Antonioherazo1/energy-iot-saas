@@ -411,26 +411,47 @@ def get_channel_time_series(
     if not organization_ids:
         return []
 
+    from sqlalchemy import union_all
+
+    safe_limit = max(1, min(limit, 500))
+
+    raw = select(
+        RawTelemetry.recorded_at.label("recorded_at"),
+        Device.name.label("device_name"),
+        RawTelemetry.ch1,
+        RawTelemetry.ch2,
+        RawTelemetry.ch3,
+        RawTelemetry.ch4,
+        RawTelemetry.ch1_energy_kwh,
+        RawTelemetry.ch2_energy_kwh,
+        RawTelemetry.ch3_energy_kwh,
+        RawTelemetry.ch4_energy_kwh,
+    ).join(Device, Device.id == RawTelemetry.device_id).where(
+        Device.organization_id.in_(organization_ids),
+        RawTelemetry.ch1.is_not(None),
+    )
+
+    agg = select(
+        Telemetry.recorded_at.label("recorded_at"),
+        Device.name.label("device_name"),
+        Telemetry.ch1,
+        Telemetry.ch2,
+        Telemetry.ch3,
+        Telemetry.ch4,
+        Telemetry.ch1_energy_kwh,
+        Telemetry.ch2_energy_kwh,
+        Telemetry.ch3_energy_kwh,
+        Telemetry.ch4_energy_kwh,
+    ).join(Device, Device.id == Telemetry.device_id).where(
+        Device.organization_id.in_(organization_ids),
+        Telemetry.ch1.is_not(None),
+    )
+
+    union_q = union_all(raw, agg).cte()
     rows = db.execute(
-        select(
-            RawTelemetry.recorded_at,
-            Device.name.label("device_name"),
-            RawTelemetry.ch1,
-            RawTelemetry.ch2,
-            RawTelemetry.ch3,
-            RawTelemetry.ch4,
-            RawTelemetry.ch1_energy_kwh,
-            RawTelemetry.ch2_energy_kwh,
-            RawTelemetry.ch3_energy_kwh,
-            RawTelemetry.ch4_energy_kwh,
-        )
-        .join(Device, Device.id == RawTelemetry.device_id)
-        .where(
-            Device.organization_id.in_(organization_ids),
-            RawTelemetry.ch1.is_not(None),
-        )
-        .order_by(RawTelemetry.recorded_at.desc())
-        .limit(max(1, min(limit, 500)))
+        select(union_q)
+        .order_by(union_q.c.recorded_at.desc())
+        .limit(safe_limit)
     )
     result = [dict(row._mapping) for row in rows]
     result.reverse()
@@ -449,20 +470,35 @@ def get_realtime_currents(
         return []
 
     since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    from sqlalchemy import union_all
+
+    raw = select(
+        RawTelemetry.recorded_at.label("recorded_at"),
+        RawTelemetry.ch1,
+        RawTelemetry.ch2,
+        RawTelemetry.ch3,
+        RawTelemetry.ch4,
+    ).where(
+        RawTelemetry.device_id == device.id,
+        RawTelemetry.recorded_at >= since,
+        RawTelemetry.ch1.is_not(None),
+    )
+
+    agg = select(
+        Telemetry.recorded_at.label("recorded_at"),
+        Telemetry.ch1,
+        Telemetry.ch2,
+        Telemetry.ch3,
+        Telemetry.ch4,
+    ).where(
+        Telemetry.device_id == device.id,
+        Telemetry.recorded_at >= since,
+        Telemetry.ch1.is_not(None),
+    )
+
+    union_q = union_all(raw, agg).cte()
     rows = db.execute(
-        select(
-            RawTelemetry.recorded_at,
-            RawTelemetry.ch1,
-            RawTelemetry.ch2,
-            RawTelemetry.ch3,
-            RawTelemetry.ch4,
-        )
-        .where(
-            RawTelemetry.device_id == device.id,
-            RawTelemetry.recorded_at >= since,
-            RawTelemetry.ch1.is_not(None),
-        )
-        .order_by(RawTelemetry.recorded_at)
+        select(union_q).order_by(union_q.c.recorded_at)
     )
     return [dict(row._mapping) for row in rows]
 

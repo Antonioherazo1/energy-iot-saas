@@ -855,12 +855,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               {lastUpdatedAt ? `Actualizado ${lastUpdatedAt.toLocaleTimeString("es-CO")}` : "Sin actualizar"}
             </span>
             <button
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium disabled:opacity-60"
               onClick={() => void loadDashboard()}
+              disabled={loading}
               type="button"
             >
-              <RefreshCw size={16} />
-              Actualizar
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              {loading ? "Actualizando..." : "Actualizar"}
             </button>
             <button
               className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-line bg-white"
