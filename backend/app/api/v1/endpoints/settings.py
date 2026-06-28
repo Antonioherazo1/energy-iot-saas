@@ -57,3 +57,53 @@ def update_kwh_rate(
         db.add(setting)
     db.commit()
     return {"value": payload.value}
+
+
+@router.get("/{key}")
+def get_setting(
+    key: str,
+    default: str = "",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    membership = db.scalar(
+        select(OrganizationMember).where(OrganizationMember.user_id == current_user.id)
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    setting = db.scalar(
+        select(OrganizationSetting).where(
+            OrganizationSetting.organization_id == membership.organization_id,
+            OrganizationSetting.key == key,
+        )
+    )
+    return {"value": setting.value if setting else default}
+
+
+@router.put("/{key}")
+def update_setting(
+    key: str,
+    payload: SettingUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    membership = db.scalar(
+        select(OrganizationMember).where(OrganizationMember.user_id == current_user.id)
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    setting = db.scalar(
+        select(OrganizationSetting).where(
+            OrganizationSetting.organization_id == membership.organization_id,
+            OrganizationSetting.key == key,
+        )
+    )
+    if setting:
+        setting.value = payload.value
+    else:
+        setting = OrganizationSetting(
+            organization_id=membership.organization_id, key=key, value=payload.value
+        )
+        db.add(setting)
+    db.commit()
+    return {"value": payload.value}

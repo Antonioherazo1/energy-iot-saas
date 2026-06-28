@@ -257,6 +257,18 @@ export function updateKwhRate(token: string, value: string): Promise<{ value: st
   });
 }
 
+export function getSetting(token: string, key: string, defaultVal = ""): Promise<{ value: string }> {
+  return request<{ value: string }>(`/settings/${key}?default=${encodeURIComponent(defaultVal)}`, { token });
+}
+
+export function setSetting(token: string, key: string, value: string): Promise<{ value: string }> {
+  return request<{ value: string }>(`/settings/${key}`, {
+    token,
+    method: "PUT",
+    body: { value },
+  });
+}
+
 export function esp32GetStatus(token: string, deviceId: string): Promise<{ cached: boolean; data: Record<string, unknown> | null }> {
   return request(`/esp32/${deviceId}/status`, { token });
 }

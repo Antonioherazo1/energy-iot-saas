@@ -33,6 +33,8 @@ import {
   updateChannel,
   getKwhRate,
   updateKwhRate,
+  getSetting,
+  setSetting,
   esp32GetStatus,
   esp32SendCommand,
   esp32SendAdminCommand,
@@ -111,7 +113,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   }, [daily, completenessPct]);
   useEffect(() => {
     localStorage.setItem("completenessPct", String(completenessPct));
-  }, [completenessPct]);
+    if (token) setSetting(token, "completenessPct", String(completenessPct)).catch(() => {});
+  }, [completenessPct, token]);
   const [loading, setLoading] = useState(false);
   const [creatingDevice, setCreatingDevice] = useState(false);
   const [error, setError] = useState("");
@@ -171,7 +174,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   }, [rowFontScales]);
   useEffect(() => {
     localStorage.setItem("decimals", JSON.stringify(decimals));
-  }, [decimals]);
+    if (token) setSetting(token, "decimals", JSON.stringify(decimals)).catch(() => {});
+  }, [decimals, token]);
 
   async function loadDashboard(activeToken = token) {
     if (!activeToken) {
@@ -201,6 +205,9 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       setMonthly(monthlyData.reverse());
       setChannelData(channels);
       setLastUpdatedAt(new Date());
+      getSetting(activeToken, "completenessPct", "60").then((r) => setCompletenessPct(Number(r.value))).catch(() => {});
+      getSetting(activeToken, "billing_start_day", "1").then((r) => setBillingStartDay(Number(r.value))).catch(() => {});
+      getSetting(activeToken, "decimals", JSON.stringify({ current: 2, power: 1, energy: 2 })).then((r) => setDecimals(JSON.parse(r.value))).catch(() => {});
       if (deviceData.length > 0) {
         const stillExists = selectedDeviceId && deviceData.some((d) => d.device_id === selectedDeviceId);
         if (!stillExists) {
@@ -1479,7 +1486,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           <section className="mx-4 w-full max-w-xs rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Corte de dia de facturacion</h2>
             <p className="mb-3 text-sm text-slate-500">Dia del mes en que inicia tu periodo de facturacion</p>
-            <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={1} max={28} value={billingStartDay} onChange={(e) => { const v = Number(e.target.value); if (v >= 1 && v <= 28) { setBillingStartDay(v); localStorage.setItem("billing_start_day", String(v)); } }} />
+            <input className="h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand" type="number" min={1} max={28} value={billingStartDay} onChange={(e) => { const v = Number(e.target.value); if (v >= 1 && v <= 28) { setBillingStartDay(v); localStorage.setItem("billing_start_day", String(v)); if (token) setSetting(token, "billing_start_day", String(v)).catch(() => {}); } }} />
             <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
