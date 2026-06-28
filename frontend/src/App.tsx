@@ -99,14 +99,19 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [createDeviceName, setCreateDeviceName] = useState("");
   const [createDeviceCode, setCreateDeviceCode] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const [completenessThreshold, setCompletenessThreshold] = useState(() => {
-    const saved = localStorage.getItem("completenessThreshold");
+  const [completenessMinRecords, setCompletenessMinRecords] = useState(() => {
+    const saved = localStorage.getItem("completenessMinRecords");
     return saved ? Number(saved) : 1000;
   });
+  const [completenessMaxRecords, setCompletenessMaxRecords] = useState(() => {
+    const saved = localStorage.getItem("completenessMaxRecords");
+    return saved ? Number(saved) : 50000;
+  });
   useEffect(() => {
-    localStorage.setItem("completenessThreshold", String(completenessThreshold));
-    if (token) setSetting(token, "completenessThreshold", String(completenessThreshold)).catch(() => {});
-  }, [completenessThreshold, token]);
+    localStorage.setItem("completenessMinRecords", String(completenessMinRecords));
+    localStorage.setItem("completenessMaxRecords", String(completenessMaxRecords));
+    if (token) { setSetting(token, "completenessMinRecords", String(completenessMinRecords)).catch(() => {}); setSetting(token, "completenessMaxRecords", String(completenessMaxRecords)).catch(() => {}); }
+  }, [completenessMinRecords, completenessMaxRecords, token]);
   const [loading, setLoading] = useState(false);
   const [creatingDevice, setCreatingDevice] = useState(false);
   const [error, setError] = useState("");
@@ -197,7 +202,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       setMonthly(monthlyData.reverse());
       setChannelData(channels);
       setLastUpdatedAt(new Date());
-      getSetting(activeToken, "completenessThreshold", "1000").then((r) => setCompletenessThreshold(Number(r.value))).catch(() => {});
+      getSetting(activeToken, "completenessMinRecords", "1000").then((r) => setCompletenessMinRecords(Number(r.value))).catch(() => {});
+      getSetting(activeToken, "completenessMaxRecords", "50000").then((r) => setCompletenessMaxRecords(Number(r.value))).catch(() => {});
       getSetting(activeToken, "billing_start_day", "1").then((r) => setBillingStartDay(Number(r.value))).catch(() => {});
       getSetting(activeToken, "decimals", JSON.stringify({ current: 2, power: 1, energy: 2 })).then((r) => setDecimals(JSON.parse(r.value))).catch(() => {});
       if (deviceData.length > 0) {
@@ -1119,7 +1125,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 const isPast = i + 1 < now.getDate();
                 const isToday = i + 1 === now.getDate();
                 const currentPeriod = isToday;
-                const incomplete = isPast && recordCount < completenessThreshold;
+                const incomplete = isPast && (recordCount < completenessMinRecords || recordCount > completenessMaxRecords);
                 return { label: String(i + 1), kwh, cost: Math.round(kwh * kwhRate), recordCount, incomplete, currentPeriod };
               });
               const hasIncomplete = days.some((d) => d.incomplete);
@@ -1281,7 +1287,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               const todayTotal = billingDaily.length > 0 ? numeric(billingDaily[billingDaily.length - 1].energy_kwh) : 0;
               const todayCost = todayTotal * kwhRate;
               const colDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-              const completeDays = billingDaily.filter((b) => String(b.period) < colDate && (b.record_count ?? 0) >= completenessThreshold);
+              const completeDays = billingDaily.filter((b) => String(b.period) < colDate && (b.record_count ?? 0) >= completenessMinRecords && (b.record_count ?? 0) <= completenessMaxRecords);
               const completeTotal = completeDays.reduce((s, b) => s + numeric(b.energy_kwh), 0);
               const completeCount = completeDays.length;
               const avgDaily = completeCount > 0 ? completeTotal / completeCount : (daysInPeriod > 0 ? periodTotal / daysInPeriod : 0);
@@ -1331,7 +1337,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       const actual = found ? numeric(found.energy_kwh) : 0;
                       const rc = found ? (found.record_count ?? 0) : 0;
                       const isToday = period === todayStr;
-                      const isComplete = period >= todayStr || rc >= completenessThreshold;
+                      const isComplete = period >= todayStr || (rc >= completenessMinRecords && rc <= completenessMaxRecords);
                       const val = isComplete || isToday ? actual : avgDaily;
                       days.push({ label: cursor.toLocaleDateString("es-CO", { day: "numeric", month: "short" }), kwh: val, projected: !isComplete && !isToday, isToday, actual });
                       cursor.setDate(cursor.getDate() + 1);
@@ -1653,8 +1659,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
           <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Validación de días</h2>
-            <p className="mb-4 text-sm text-slate-500">Mínimo de registros diarios para considerar un día como completo. Consulta el panel de consumo diario para ver cuántos registros tiene cada día.</p>
-            <input className="h-10 w-full rounded-md border border-line px-3 text-sm text-center outline-none focus:border-brand" type="number" min={10} max={50000} value={completenessThreshold} onChange={(e) => { const v = parseInt(e.target.value) || 0; if (v >= 0) setCompletenessThreshold(v); }} />
+            <p className="mb-4 text-sm text-slate-500">Rango de registros diarios para considerar un día como completo. Días fuera del rango se excluyen del promedio para la proyección.</p>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Registros mínimos</label>
+            <input className="h-10 w-full rounded-md border border-line px-3 text-sm text-center outline-none focus:border-brand" type="number" min={10} max={50000} value={completenessMinRecords} onChange={(e) => { const v = parseInt(e.target.value) || 0; if (v >= 0) setCompletenessMinRecords(v); }} />
+            <label className="mb-1 mt-4 block text-xs font-medium text-slate-500">Registros máximos</label>
+            <input className="h-10 w-full rounded-md border border-line px-3 text-sm text-center outline-none focus:border-brand" type="number" min={10} max={500000} value={completenessMaxRecords} onChange={(e) => { const v = parseInt(e.target.value) || 0; if (v >= 0) setCompletenessMaxRecords(v); }} />
             <button className="mt-6 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
