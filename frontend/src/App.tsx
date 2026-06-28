@@ -102,7 +102,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     return saved ? Number(saved) : 60;
   });
   const completenessThreshold = useMemo(() => {
-    const maxRecordCount = Math.max(1, ...daily.map((item) => item.record_count ?? 0));
+    const recent = daily.filter((item) => {
+      const d = new Date(item.period + "T00:00:00");
+      return Date.now() - d.getTime() < 7 * 86400000;
+    });
+    const maxRecordCount = Math.max(1, ...recent.map((item) => item.record_count ?? 0));
     return Math.max(10, Math.round(maxRecordCount * (completenessPct / 100)));
   }, [daily, completenessPct]);
   useEffect(() => {
@@ -850,7 +854,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   return (
     <main className="min-h-screen bg-panel text-ink">
       <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-4">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-md bg-brand text-white">
               <Zap size={21} />
@@ -861,10 +865,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden items-center gap-3 text-sm text-slate-500 md:flex">
-              {dbSize !== null ? <span className="text-xs text-slate-400">BD {dbSize.toFixed(1)} MB</span> : null}
-              {lastUpdatedAt ? `Actualizado ${lastUpdatedAt.toLocaleTimeString("es-CO")}` : "Sin actualizar"}
-            </span>
             <button
               className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium disabled:opacity-60"
               onClick={() => void loadDashboard()}
@@ -874,6 +874,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               {loading ? "Actualizando..." : "Actualizar"}
             </button>
+            <span className="flex items-center gap-3 text-xs text-slate-500">
+              {dbSize !== null ? <span>BD {dbSize.toFixed(1)} MB</span> : null}
+              {lastUpdatedAt ? `Actualizado ${lastUpdatedAt.toLocaleTimeString("es-CO")}` : "Sin actualizar"}
+            </span>
             <button
               className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-line bg-white"
               onClick={() => setShowSideMenu(true)}
