@@ -108,9 +108,18 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       const d = new Date(item.period + "T00:00:00");
       return Date.now() - d.getTime() < 7 * 86400000;
     });
-    const maxRecordCount = Math.max(1, ...recent.map((item) => item.record_count ?? 0));
-    return Math.max(10, Math.round(maxRecordCount * (completenessPct / 100)));
+    const counts = recent.map((item) => item.record_count ?? 0).filter((c) => c > 0);
+    const typical = counts.length > 0 ? counts.sort((a, b) => a - b)[Math.floor(counts.length / 2)] : 1440;
+    return Math.max(10, Math.round(typical * (completenessPct / 100)));
   }, [daily, completenessPct]);
+  const typicalCount = useMemo(() => {
+    const recent = daily.filter((item) => {
+      const d = new Date(item.period + "T00:00:00");
+      return Date.now() - d.getTime() < 7 * 86400000;
+    });
+    const counts = recent.map((item) => item.record_count ?? 0).filter((c) => c > 0);
+    return counts.length > 0 ? counts.sort((a, b) => a - b)[Math.floor(counts.length / 2)] : 1440;
+  }, [daily]);
   useEffect(() => {
     localStorage.setItem("completenessPct", String(completenessPct));
     if (token) setSetting(token, "completenessPct", String(completenessPct)).catch(() => {});
@@ -1619,6 +1628,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <span className="min-w-[80px] text-center text-2xl font-semibold">{completenessPct}%</span>
               <button className="h-10 w-10 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={completenessPct >= 100} onClick={() => setCompletenessPct((p) => p + 5)} type="button">+</button>
             </div>
+            <p className="mt-3 text-center text-xs text-slate-400">Registros típicos/día: {typicalCount.toLocaleString("es-CO")} — mínimo {completenessThreshold.toLocaleString("es-CO")}</p>
             <button className="mt-6 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
