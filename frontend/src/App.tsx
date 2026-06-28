@@ -1321,6 +1321,54 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                       </>
                     )}
                   </div>
+                  {(() => {
+                    const days: { label: string; kwh: number; projected: boolean; isToday: boolean; actual: number }[] = [];
+                    const cursor = new Date(billingDate);
+                    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+                    while (cursor <= now) {
+                      const period = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+                      const found = billingDaily.find((b) => String(b.period) === period);
+                      const actual = found ? numeric(found.energy_kwh) : 0;
+                      const rc = found ? (found.record_count ?? 0) : 0;
+                      const isToday = period === todayStr;
+                      const isComplete = period >= todayStr || rc >= completenessThreshold;
+                      const val = isComplete || isToday ? actual : avgDaily;
+                      days.push({ label: cursor.toLocaleDateString("es-CO", { day: "numeric", month: "short" }), kwh: val, projected: !isComplete && !isToday, isToday, actual });
+                      cursor.setDate(cursor.getDate() + 1);
+                    }
+                    if (days.length < 3) return null;
+                    return (
+                      <div className="mt-4">
+                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Proyecci\u00f3n diaria</h3>
+                        <Chart option={{
+                          grid: { left: 48, right: 8, top: 8, bottom: 28 },
+                          xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { rotate: 90, fontSize: lsz(9, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.ceil(days.length / 15) - 1) } },
+                          yAxis: { type: "value", axisLabel: { fontSize: lsz(9, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                          series: [{
+                            type: "bar",
+                            barMinHeight: 2,
+                            data: days.map((d) => {
+                              if (d.isToday) return { value: d.kwh, itemStyle: { color: "#16a34a", borderColor: "#16a34a", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#16a34a" } } };
+                              if (d.projected) return { value: d.kwh, itemStyle: { color: "#2563eb", opacity: 0.35 }, emphasis: { itemStyle: { color: "#2563eb", opacity: 0.55 } } };
+                              return { value: d.kwh, itemStyle: { color: "#2563eb" }, emphasis: { itemStyle: { color: "#2563eb" } } };
+                            }),
+                          }],
+                          tooltip: {
+                            trigger: "axis",
+                            formatter: (params: any) => {
+                              const p = params[0];
+                              const d = days[Number(p.dataIndex)];
+                              let extra = "";
+                              if (d.isToday) extra = '<br/><span style="color:#16a34a;font-size:11px;">\u2022 Hoy</span>';
+                              else if (d.projected) extra = `<br/><span style="color:#2563eb;font-size:11px;">\u2022 Proyectado (promedio d\u00edas completos)</span>`;
+                              const cost = Math.round(p.value * kwhRate);
+                              return `<strong>${d.label}</strong><br/>${p.value.toFixed(2)} kWh<br/>\$ ${Intl.NumberFormat("es-CO").format(cost)}${extra}`;
+                            },
+                          },
+                        }} />
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}
