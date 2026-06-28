@@ -99,31 +99,14 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [createDeviceName, setCreateDeviceName] = useState("");
   const [createDeviceCode, setCreateDeviceCode] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const [completenessPct, setCompletenessPct] = useState(() => {
-    const saved = localStorage.getItem("completenessPct");
-    return saved ? Number(saved) : 60;
+  const [completenessThreshold, setCompletenessThreshold] = useState(() => {
+    const saved = localStorage.getItem("completenessThreshold");
+    return saved ? Number(saved) : 1000;
   });
-  const completenessThreshold = useMemo(() => {
-    const recent = daily.filter((item) => {
-      const d = new Date(item.period + "T00:00:00");
-      return Date.now() - d.getTime() < 7 * 86400000;
-    });
-    const counts = recent.map((item) => item.record_count ?? 0).filter((c) => c > 0);
-    const typical = counts.length > 0 ? counts.sort((a, b) => a - b)[Math.floor(counts.length / 2)] : 1440;
-    return Math.max(10, Math.round(typical * (completenessPct / 100)));
-  }, [daily, completenessPct]);
-  const typicalCount = useMemo(() => {
-    const recent = daily.filter((item) => {
-      const d = new Date(item.period + "T00:00:00");
-      return Date.now() - d.getTime() < 7 * 86400000;
-    });
-    const counts = recent.map((item) => item.record_count ?? 0).filter((c) => c > 0);
-    return counts.length > 0 ? counts.sort((a, b) => a - b)[Math.floor(counts.length / 2)] : 1440;
-  }, [daily]);
   useEffect(() => {
-    localStorage.setItem("completenessPct", String(completenessPct));
-    if (token) setSetting(token, "completenessPct", String(completenessPct)).catch(() => {});
-  }, [completenessPct, token]);
+    localStorage.setItem("completenessThreshold", String(completenessThreshold));
+    if (token) setSetting(token, "completenessThreshold", String(completenessThreshold)).catch(() => {});
+  }, [completenessThreshold, token]);
   const [loading, setLoading] = useState(false);
   const [creatingDevice, setCreatingDevice] = useState(false);
   const [error, setError] = useState("");
@@ -214,7 +197,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       setMonthly(monthlyData.reverse());
       setChannelData(channels);
       setLastUpdatedAt(new Date());
-      getSetting(activeToken, "completenessPct", "60").then((r) => setCompletenessPct(Number(r.value))).catch(() => {});
+      getSetting(activeToken, "completenessThreshold", "1000").then((r) => setCompletenessThreshold(Number(r.value))).catch(() => {});
       getSetting(activeToken, "billing_start_day", "1").then((r) => setBillingStartDay(Number(r.value))).catch(() => {});
       getSetting(activeToken, "decimals", JSON.stringify({ current: 2, power: 1, energy: 2 })).then((r) => setDecimals(JSON.parse(r.value))).catch(() => {});
       if (deviceData.length > 0) {
@@ -1622,13 +1605,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
           <section className="mx-4 w-full max-w-sm rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Validación de días</h2>
-            <p className="mb-4 text-sm text-slate-500">Porcentaje de registros mínimos para considerar un día como completo</p>
-            <div className="flex items-center justify-center gap-4">
-              <button className="h-10 w-10 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={completenessPct <= 10} onClick={() => setCompletenessPct((p) => p - 5)} type="button">−</button>
-              <span className="min-w-[80px] text-center text-2xl font-semibold">{completenessPct}%</span>
-              <button className="h-10 w-10 rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30" disabled={completenessPct >= 100} onClick={() => setCompletenessPct((p) => p + 5)} type="button">+</button>
-            </div>
-            <p className="mt-3 text-center text-xs text-slate-400">Registros típicos/día: {typicalCount.toLocaleString("es-CO")} — mínimo {completenessThreshold.toLocaleString("es-CO")}</p>
+            <p className="mb-4 text-sm text-slate-500">Mínimo de registros diarios para considerar un día como completo. Consulta el panel de consumo diario para ver cuántos registros tiene cada día.</p>
+            <input className="h-10 w-full rounded-md border border-line px-3 text-sm text-center outline-none focus:border-brand" type="number" min={10} max={50000} value={completenessThreshold} onChange={(e) => { const v = parseInt(e.target.value) || 0; if (v >= 0) setCompletenessThreshold(v); }} />
             <button className="mt-6 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
           </section>
         </div>
