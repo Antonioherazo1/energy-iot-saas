@@ -285,3 +285,45 @@ export function esp32SendAdminCommand(token: string, deviceId: string, body: Rec
     headers: { "X-Admin-Password": adminPassword },
   });
 }
+
+export async function uploadFirmware(token: string, version: string, file: File, notes?: string): Promise<{ ok: boolean; firmware: Record<string, unknown> }> {
+  const form = new FormData();
+  form.append("version", version);
+  form.append("file", file);
+  if (notes) form.append("notes", notes);
+  const res = await fetch(`${API_BASE_URL}/firmware/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function listFirmware(token: string): Promise<Array<Record<string, unknown>>> {
+  return request("/firmware/versions", { token });
+}
+
+export async function triggerOta(token: string, deviceId: string, firmwareId: string): Promise<{ ok: boolean }> {
+  const form = new FormData();
+  form.append("firmware_id", firmwareId);
+  const res = await fetch(`${API_BASE_URL}/firmware/ota/${deviceId}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function triggerOtaAll(token: string, firmwareId: string): Promise<{ ok: boolean; sent: number; total: number }> {
+  const form = new FormData();
+  form.append("firmware_id", firmwareId);
+  const res = await fetch(`${API_BASE_URL}/firmware/ota/all`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

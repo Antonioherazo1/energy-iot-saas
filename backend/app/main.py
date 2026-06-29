@@ -1,10 +1,12 @@
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -78,3 +80,6 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+os.makedirs(settings.firmware_dir, exist_ok=True)
+app.mount("/firmware", StaticFiles(directory=settings.firmware_dir), name="firmware")

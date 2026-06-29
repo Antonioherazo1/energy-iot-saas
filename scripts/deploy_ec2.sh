@@ -34,6 +34,17 @@ echo "==> Publishing frontend to $WEB_ROOT"
 sudo mkdir -p "$WEB_ROOT"
 sudo cp -r "$FRONTEND_DIR/dist/"* "$WEB_ROOT/"
 
+echo "==> Adding firmware nginx location if missing"
+FIRMWARE_CONF="/etc/nginx/snippets/firmware.conf"
+if [ ! -f "$FIRMWARE_CONF" ]; then
+  echo 'location /firmware/ { proxy_pass http://127.0.0.1:8000/firmware/; proxy_set_header Host $host; }' | sudo tee "$FIRMWARE_CONF" > /dev/null
+  echo "Created $FIRMWARE_CONF"
+fi
+# Check if the include is in the main nginx config
+if ! grep -q "firmware.conf" /etc/nginx/conf.d/thinc.conf 2>/dev/null; then
+  echo "WARNING: Add 'include /etc/nginx/snippets/firmware.conf;' inside the server block of /etc/nginx/conf.d/thinc.conf, then run sudo nginx -t && sudo systemctl reload nginx"
+fi
+
 echo "==> Reloading Nginx"
 sudo nginx -t
 sudo systemctl reload nginx

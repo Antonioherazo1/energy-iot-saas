@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     assumed_voltage: int = 110
     esp32_topic: str = "energia/datos"
     admin_password: str = "admin123"
+    firmware_dir: str = "/app/firmware"
+    firmware_base_url: str = "http://localhost:8000/firmware"
 
     db_pool_size: int = 5
     db_max_overflow: int = 5

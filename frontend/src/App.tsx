@@ -1,4 +1,4 @@
-import { Cpu, DollarSign, Download, Hash, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Zap } from "lucide-react";
+import { Cpu, DollarSign, Download, Hash, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Upload, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
@@ -38,6 +38,10 @@ import {
   esp32GetStatus,
   esp32SendCommand,
   esp32SendAdminCommand,
+  uploadFirmware,
+  listFirmware,
+  triggerOta,
+  triggerOtaAll,
 } from "./lib/api";
 import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 
@@ -1443,6 +1447,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
               <SideMenuItem icon={<Hash size={18} />} label="Decimales" onClick={() => { setSideSection("decimals"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Type size={18} />} label="Factor de fuente" onClick={() => { setSideSection("font-scale"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Settings size={18} />} label="Validación días" onClick={() => { setSideSection("completeness"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<Upload size={18} />} label="Firmware" onClick={() => { setSideSection("firmware"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<LogOut size={18} />} label="Salir" onClick={() => { setSideSection("logout"); setShowSideMenu(false); }} />
             </div>
           </aside>
@@ -1668,6 +1673,63 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
           </section>
         </div>
       )}
+      {sideSection === "firmware" && (() => {
+        const [firmwareList, setFirmwareList] = useState<Array<Record<string, unknown>>>([]);
+        const [selectedFw, setSelectedFw] = useState<string>("");
+        const [uploading, setUploading] = useState(false);
+        const [sending, setSending] = useState(false);
+        const [msg, setMsg] = useState("");
+        const [devices, setFwDevices] = useState<Array<{ device_id: string; name: string }>>([]);
+        useEffect(() => {
+          if (token) { listFirmware(token).then(setFirmwareList).catch(() => {});
+            getDeviceStatus(token).then((d) => setFwDevices(d.map((x: any) => ({ device_id: x.device_id, name: x.name })))).catch(() => {}); }
+        }, [token]);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+            <section className="mx-4 max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg border border-line bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+              <h2 className="mb-4 text-lg font-semibold">Firmware OTA</h2>
+              <div className="mb-4 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4">
+                <p className="mb-2 text-xs font-medium text-slate-500">Subir nuevo firmware</p>
+                <input className="mb-2 w-full rounded border border-line px-2 py-1.5 text-sm" type="text" placeholder="Versión (ej: 2.1)" id="fw-version" />
+                <input className="mb-2 w-full text-sm" type="file" accept=".bin" id="fw-file" />
+                <button className="h-9 w-full rounded-md bg-brand text-sm text-white font-medium disabled:opacity-50" disabled={uploading} onClick={async () => {
+                  const ver = (document.getElementById("fw-version") as HTMLInputElement)?.value;
+                  const fileInput = document.getElementById("fw-file") as HTMLInputElement;
+                  if (!ver || !fileInput?.files?.[0]) { setMsg("Especifica versión y archivo .bin"); return; }
+                  setUploading(true); setMsg("");
+                  try { const r = await uploadFirmware(token!, ver, fileInput.files[0]); setMsg(`Subido: ${r.firmware.version}`); setSelectedFw(String(r.firmware.id)); listFirmware(token!).then(setFirmwareList).catch(() => {}); } catch (e: any) { setMsg("Error: " + e.message); }
+                  setUploading(false);
+                }} type="button">{uploading ? "Subiendo..." : "Subir"}</button>
+              </div>
+              {firmwareList.length > 0 && (
+                <div className="mb-4">
+                  <label className="mb-1 block text-xs font-medium text-slate-500">Versión para OTA</label>
+                  <select className="h-10 w-full rounded-md border border-line px-3 text-sm" value={selectedFw} onChange={(e) => setSelectedFw(e.target.value)}>
+                    <option value="">Seleccionar...</option>
+                    {firmwareList.map((fw: any) => (
+                      <option key={fw.id} value={fw.id}>{fw.version} ({fw.filename})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {selectedFw && devices.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-slate-500">Dispositivos ({devices.length})</p>
+                  {devices.map((d) => (
+                    <button key={d.device_id} className="flex w-full items-center justify-between rounded-md border border-line px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-40" disabled={sending} onClick={async () => { setSending(true); setMsg(""); try { await triggerOta(token!, d.device_id, selectedFw); setMsg(`OTA iniciado en ${d.name}`); } catch (e: any) { setMsg("Error: " + e.message); } setSending(false); }} type="button">
+                      <span>{d.name}</span>
+                      <span className="text-xs text-brand">Actualizar</span>
+                    </button>
+                  ))}
+                  <button className="mt-3 h-9 w-full rounded-md bg-amber-50 text-sm font-medium text-amber-700 border border-amber-200 disabled:opacity-40" disabled={sending} onClick={async () => { setSending(true); setMsg(""); try { const r = await triggerOtaAll(token!, selectedFw); setMsg(`OTA enviado a ${r.sent}/${r.total} dispositivos`); } catch (e: any) { setMsg("Error: " + e.message); } setSending(false); }} type="button">Actualizar todos</button>
+                </div>
+              )}
+              {msg && <p className="mt-3 text-xs text-slate-500">{msg}</p>}
+              <button className="mt-4 w-full h-11 rounded-md border border-line bg-white text-sm font-medium" onClick={() => setSideSection(null)} type="button">Cerrar</button>
+            </section>
+          </div>
+        );
+      })()}
       {sideSection === "esp32" && selectedDeviceId && (() => {
         const dev = devices.find(d => d.device_id === selectedDeviceId);
         const mac = dev?.code ?? selectedDeviceId;

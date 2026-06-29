@@ -11,10 +11,13 @@ services:
       MQTT_ENABLED: "true"
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
+      FIRMWARE_BASE_URL: https://thinc.site/firmware
     depends_on:
       - postgres
       - mosquitto
     restart: unless-stopped
+    volumes:
+      - firmware_data:/app/firmware
 
   postgres:
     image: postgres:16-alpine
@@ -44,3 +47,4 @@ volumes:
   postgres_data:
   mosquitto_data:
   mosquitto_log:
+  firmware_data:

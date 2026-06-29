@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #define MQTT_MAX_PACKET_SIZE 512
 #include <PubSubClient.h>
+#include <HTTPClient.h>
+#include <Update.h>
 #include "mqtt_manager.h"
 #include "storage_manager.h"
 
@@ -11,6 +13,56 @@ Configuracion configApp;
 
 static unsigned long ultimoIntento = 0;
 static const unsigned long INTENTO_INTERVALO = 30000;
+
+static bool descargarOTA(const String& url) {
+  HTTPClient http;
+  http.setTimeout(120000);
+  http.begin(url);
+  int code = http.GET();
+  if (code != 200) {
+    Serial.print("OTA HTTP error: ");
+    Serial.println(code);
+    http.end();
+    return false;
+  }
+  int len = http.getSize();
+  if (len <= 0) {
+    Serial.println("OTA tamaño invalido");
+    http.end();
+    return false;
+  }
+  Serial.print("OTA descargando ");
+  Serial.print(len);
+  Serial.println(" bytes...");
+  if (!Update.begin(len)) {
+    Serial.print("OTA Update.begin error: ");
+    Serial.println(Update.getError());
+    http.end();
+    return false;
+  }
+  WiFiClient* stream = http.getStreamPtr();
+  uint8_t buf[256];
+  int total = 0;
+  while (http.connected() && total < len) {
+    int r = stream->readBytes(buf, min((int)sizeof(buf), len - total));
+    if (r == 0) break;
+    Update.write(buf, r);
+    total += r;
+    if (total % 10000 == 0 || total == len) {
+      Serial.print("OTA progreso: ");
+      Serial.print(total * 100 / len);
+      Serial.println("%");
+    }
+  }
+  http.end();
+  if (!Update.end() || !Update.isFinished()) {
+    Serial.print("OTA error en Update.end: ");
+    Serial.println(Update.getError());
+    return false;
+  }
+  Serial.println("OTA completado");
+  return true;
+}
 
 void callbackMQTT(char* topic, byte* payload, unsigned int length) {
   String msg;
@@ -135,6 +187,21 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
       resp = "{\"cmd\":\"habilitar_canal\",\"ok\":true,\"canal\":" + String(canal) + ",\"habilitado\":" + (habilitado ? "true" : "false") + "}";
     } else {
       resp = "{\"cmd\":\"habilitar_canal\",\"ok\":false,\"error\":\"canal invalido\"}";
+    }
+  } else if (cmd == "ota") {
+    String url = extraerStr("url");
+    if (url.length() > 0) {
+      publicarRespuestaMQTT("{\"cmd\":\"ota\",\"ok\":true,\"status\":\"descargando\"}");
+      bool ok = descargarOTA(url);
+      if (ok) {
+        publicarRespuestaMQTT("{\"cmd\":\"ota\",\"ok\":true,\"status\":\"completado\"}");
+        delay(500);
+        ESP.restart();
+      } else {
+        publicarRespuestaMQTT("{\"cmd\":\"ota\",\"ok\":false,\"status\":\"error\"}");
+      }
+    } else {
+      resp = "{\"cmd\":\"ota\",\"ok\":false,\"error\":\"url requerida\"}";
     }
   } else {
     resp = "{\"cmd\":\"" + cmd + "\",\"ok\":false,\"error\":\"comando desconocido\"}";
