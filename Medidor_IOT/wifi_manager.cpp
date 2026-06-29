@@ -3,21 +3,21 @@
 #include <WiFiManager.h>
 
 void iniciarWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
 
   WiFiManager wm;
+  wm.setConnectTimeout(10);
+  wm.setConfigPortalTimeout(60);
+  wm.setSaveParamsCallback([] {
+    Serial.println("WiFi config guardada en NVS");
+  });
 
-  bool res;
-
-  res = wm.autoConnect("MedidorEnergia");
-
-  if(!res) {
-
-    Serial.println("No conectado");
-
-    ESP.restart();
-
+  if (wm.autoConnect("MedidorEnergia")) {
+    Serial.print("WiFi conectado. IP: ");
+    Serial.println(WiFi.localIP());
   } else {
-
-    Serial.println("WiFi conectado");
+    Serial.println("WiFi NO disponible - modo sin conexion");
   }
 }

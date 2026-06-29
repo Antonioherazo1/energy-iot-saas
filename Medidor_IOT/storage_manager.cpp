@@ -9,15 +9,10 @@ static bool fsOk = false;
 bool iniciarStorage() {
   if (LittleFS.begin()) {
     fsOk = true;
+    Serial.println("LittleFS montado");
   } else {
-    Serial.println("Formateando LittleFS...");
-    if (LittleFS.format() && LittleFS.begin()) {
-      fsOk = true;
-      Serial.println("LittleFS formateado OK");
-    } else {
-      Serial.println("LittleFS no disponible - buffer desactivado");
-      return false;
-    }
+    Serial.println("LittleFS no disponible - buffer desactivado");
+    return false;
   }
   if (LittleFS.exists(BUFFER_SENDING)) {
     LittleFS.remove(BUFFER_SENDING);

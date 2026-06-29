@@ -7,5 +7,6 @@ void iniciarTiempo();
 String obtenerHora();
 uint32_t obtenerUnixTime();
 String formatearEpoch(uint32_t epoch);
+bool tiempoValido();
 
 #endif
