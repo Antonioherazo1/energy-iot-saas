@@ -1231,8 +1231,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                   </div>
                   <p className="text-xs text-slate-400">Ultimos 6 meses</p>
                   <Chart option={{
-                    grid: { left: 56, right: 12, top: 12, bottom: 36 },
-                    xAxis: { type: "category", data: months.map((m) => m.label), axisLabel: { rotate: 90, fontSize: lsz(11, rowFontScales.chart), color: "#526071" } },
+                    grid: { left: 56, right: 12, top: 12, bottom: 48 },
+                    xAxis: { type: "category", data: months.map((m) => m.label), axisLabel: { rotate: 90, fontSize: lsz(10, rowFontScales.chart), color: "#526071" } },
                     yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                     series: [
                       {
@@ -1349,10 +1349,10 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                     if (days.length < 3) return null;
                     return (
                       <div className="mt-4">
-                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Proyecci\u00f3n diaria</h3>
+                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Proyección diaria</h3>
                         <Chart option={{
-                          grid: { left: 48, right: 8, top: 8, bottom: 28 },
-                          xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { rotate: 90, fontSize: lsz(9, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.ceil(days.length / 15) - 1) } },
+                          grid: { left: 48, right: 8, top: 8, bottom: 48 },
+                          xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { rotate: 90, fontSize: lsz(9, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.ceil(days.length / 10) - 1) } },
                           yAxis: { type: "value", axisLabel: { fontSize: lsz(9, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
                           series: [{
                             type: "bar",
