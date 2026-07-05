@@ -9,14 +9,21 @@ $ErrorActionPreference = "Stop"
 $api = "https://thinc.site/api/v1"
 
 Write-Host "==> Login..."
-$body = @{email=$Email; password=$Pass} | ConvertTo-Json
-$token = curl.exe -s "$api/auth/login" -H "Content-Type: application/json" -d $body | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])"
+$body = @{email = $Email; password = $Pass} | ConvertTo-Json
+$headers = @{"Content-Type" = "application/json"}
+$resp = Invoke-RestMethod -Uri "$api/auth/login" -Method Post -Body $body -ContentType "application/json"
+$token = $resp.access_token
 
 Write-Host "==> Subiendo firmware v$Version..."
-$res = curl.exe -s "$api/firmware/upload" -H "Authorization: Bearer $token" -F "version=$Version" -F "file=@$Bin"
-$fw_id = $res | python -c "import sys,json; print(json.load(sys.stdin)['firmware']['id'])"
+$form = @{
+  version = $Version
+  file = Get-Item -LiteralPath $Bin
+}
+$resp = Invoke-RestMethod -Uri "$api/firmware/upload" -Method Post -Headers @{Authorization = "Bearer $token"} -Form $form
+$fw_id = $resp.firmware.id
 Write-Host "  Firmware ID: $fw_id"
 
 Write-Host "==> Enviando OTA a TODOS los dispositivos..."
-$res = curl.exe -s "$api/firmware/ota/all" -H "Authorization: Bearer $token" -F "firmware_id=$fw_id"
-Write-Host "  $res"
+$form2 = @{firmware_id = $fw_id}
+$resp = Invoke-RestMethod -Uri "$api/firmware/ota/all" -Method Post -Headers @{Authorization = "Bearer $token"} -Form $form2
+Write-Host "  $resp"
