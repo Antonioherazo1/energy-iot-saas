@@ -16,17 +16,19 @@ if [ ! -f "$BIN" ]; then
 fi
 
 echo "==> Login..."
+PY="python"
+command -v python3 >/dev/null 2>&1 && PY="python3"
 TOKEN=$(curl -sf "$API/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+  | $PY -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
 echo "==> Subiendo firmware v$VERSION..."
 RES=$(curl -sf "$API/firmware/upload" \
   -H "Authorization: Bearer $TOKEN" \
   -F "version=$VERSION" \
   -F "file=@$BIN")
-FW_ID=$(echo "$RES" | python3 -c "import sys,json; print(json.load(sys.stdin)['firmware']['id'])")
+FW_ID=$(echo "$RES" | $PY -c "import sys,json; print(json.load(sys.stdin)['firmware']['id'])")
 echo "  Firmware ID: $FW_ID"
 
 echo "==> Enviando OTA a TODOS los dispositivos..."
@@ -37,4 +39,4 @@ echo "  $RES"
 
 echo ""
 echo "Dispositivos actualizandose. Verificar con:"
-echo "  curl -sH 'Authorization: Bearer $TOKEN' $API/esp32/diagnostic | python3 -m json.tool"
+echo "  curl -sH 'Authorization: Bearer $TOKEN' $API/esp32/diagnostic | $PY -m json.tool"
