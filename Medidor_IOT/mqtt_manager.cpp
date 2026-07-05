@@ -41,21 +41,18 @@ static bool descargarOTA(const String& url) {
     return false;
   }
   WiFiClient* stream = http.getStreamPtr();
-  uint8_t buf[256];
-  int total = 0;
-  while (http.connected() && total < len) {
-    int r = stream->readBytes(buf, min((int)sizeof(buf), len - total));
-    if (r == 0) break;
-    Update.write(buf, r);
-    total += r;
-    if (total % 10000 == 0 || total == len) {
-      Serial.print("OTA progreso: ");
-      Serial.print(total * 100 / len);
-      Serial.println("%");
-    }
+  size_t written = Update.writeStream(*stream);
+  if (written != (size_t)len) {
+    Serial.print("OTA writeStream error: escrito ");
+    Serial.print(written);
+    Serial.print(" de ");
+    Serial.println(len);
+    http.end();
+    Update.end();
+    return false;
   }
   http.end();
-  if (!Update.end() || !Update.isFinished()) {
+  if (!Update.end()) {
     Serial.print("OTA error en Update.end: ");
     Serial.println(Update.getError());
     return false;
