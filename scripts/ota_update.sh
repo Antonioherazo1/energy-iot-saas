@@ -17,12 +17,20 @@ fi
 
 echo "==> Login..."
 PY="python"
-command -v python3 >/dev/null 2>&1 && PY="python3"
-# Git Bash + Microsoft Store alias workaround
-if ! command -v "$PY" >/dev/null 2>&1 || "$PY" --version 2>&1 | grep -qi "Microsoft Store\|no se encontr"; then
-  for p in "/c/Python313/python.exe" "/c/Python312/python.exe" "/c/Python311/python.exe"; do
-    [ -x "$p" ] && { PY="$p"; break; }
-  done
+# Force full path on Windows (bypass Microsoft Store alias)
+for p in "/c/Python313/python.exe" "/c/Python312/python.exe" "/c/Python311/python.exe"; do
+  [ -x "$p" ] && { PY="$p"; break; }
+done
+# Fallback: try python3, then python
+if ! "$PY" -c "" 2>/dev/null; then
+  PY="python3"
+  if ! "$PY" -c "" 2>/dev/null; then
+    PY="python"
+    if ! "$PY" -c "" 2>/dev/null; then
+      echo "ERROR: Python no encontrado. Instalalo o ajusta PY en el script." >&2
+      exit 1
+    fi
+  fi
 fi
 TOKEN=$(curl -sf "$API/auth/login" \
   -H "Content-Type: application/json" \
