@@ -79,7 +79,7 @@ void loop() {
         payload += String(ch3, 2);
         payload += ",\"ch4\":";
         payload += String(ch4, 2);
-        payload += ",\"wanda\":\"wanda\"";
+        payload += ",\"Alejo\":\"Alejo\"";
         payload += "}";
         publicarMQTT(payload);
       }
@@ -108,7 +108,7 @@ void loop() {
       payload += ",";
       payload += "\"ch4\":";
       payload += String(corrientes[3], 2);
-      payload += ",\"wanda\":\"wanda\"";
+      payload += ",\"Alejo\":\"Alejo\"";
       payload += "}";
 
       Serial.println(payload);
