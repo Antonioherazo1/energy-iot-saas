@@ -80,8 +80,8 @@ async def trigger_ota_all(
     sent = []
     for dev in devices:
         try:
-            mqtt_service.publish_command(dev.device_id, payload)
-            sent.append(dev.device_id)
+            mqtt_service.publish_command(dev.code, payload)
+            sent.append(dev.code)
         except Exception as e:
             logger.error("Error sending OTA to %s: %s", dev.device_id, e)
 
