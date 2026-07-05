@@ -62,7 +62,7 @@ async def send_command(device_id: str, payload: CommandPayload, user=Depends(get
         cmd_dict["habilitado"] = payload.habilitado
 
     import json
-    mqtt_service.publish_command(device_id, json.dumps(cmd_dict))
+    mqtt_service.publish_command(device_id, json.dumps(cmd_dict, separators=(",", ":")))
     return {"ok": True, "command": cmd_dict}
 
 
@@ -85,5 +85,5 @@ async def send_admin_command(
         cmd_dict["habilitado"] = payload.habilitado
 
     import json
-    mqtt_service.publish_command(device_id, json.dumps(cmd_dict))
+    mqtt_service.publish_command(device_id, json.dumps(cmd_dict, separators=(",", ":")))
     return {"ok": True, "command": cmd_dict, "admin": True}

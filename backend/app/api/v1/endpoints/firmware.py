@@ -75,7 +75,7 @@ async def trigger_ota_all(
     result = db.execute(select(Device))
     devices = result.scalars().all()
     download_url = f"{settings.firmware_base_url}/{fw.filename}"
-    payload = json.dumps({"cmd": "ota", "url": download_url})
+    payload = json.dumps({"cmd": "ota", "url": download_url}, separators=(",", ":"))
 
     sent = []
     for dev in devices:
@@ -100,6 +100,6 @@ async def trigger_ota(
         raise HTTPException(status_code=404, detail="Firmware no encontrado")
 
     download_url = f"{settings.firmware_base_url}/{fw.filename}"
-    payload = json.dumps({"cmd": "ota", "url": download_url})
+    payload = json.dumps({"cmd": "ota", "url": download_url}, separators=(",", ":"))
     mqtt_service.publish_command(device_id, payload)
     return {"ok": True, "device_id": device_id, "firmware_version": fw.version, "url": download_url}
