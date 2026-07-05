@@ -60,23 +60,6 @@ async def upload_firmware(
     return {"ok": True, "firmware": {"id": str(fw.id), "version": fw.version, "filename": fw.filename, "file_size": fw.file_size, "checksum": fw.checksum, "url": download_url}}
 
 
-@router.post("/ota/{device_id}")
-async def trigger_ota(
-    device_id: str,
-    firmware_id: str = Form(...),
-    user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    fw = db.get(Firmware, UUID(firmware_id))
-    if not fw:
-        raise HTTPException(status_code=404, detail="Firmware no encontrado")
-
-    download_url = f"{settings.firmware_base_url}/{fw.filename}"
-    payload = json.dumps({"cmd": "ota", "url": download_url})
-    mqtt_service.publish_command(device_id, payload)
-    return {"ok": True, "device_id": device_id, "firmware_version": fw.version, "url": download_url}
-
-
 @router.post("/ota/all")
 async def trigger_ota_all(
     firmware_id: str = Form(...),
@@ -103,3 +86,20 @@ async def trigger_ota_all(
             logger.error("Error sending OTA to %s: %s", dev.device_id, e)
 
     return {"ok": True, "sent": len(sent), "total": len(devices), "firmware_version": fw.version}
+
+
+@router.post("/ota/{device_id}")
+async def trigger_ota(
+    device_id: str,
+    firmware_id: str = Form(...),
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    fw = db.get(Firmware, UUID(firmware_id))
+    if not fw:
+        raise HTTPException(status_code=404, detail="Firmware no encontrado")
+
+    download_url = f"{settings.firmware_base_url}/{fw.filename}"
+    payload = json.dumps({"cmd": "ota", "url": download_url})
+    mqtt_service.publish_command(device_id, payload)
+    return {"ok": True, "device_id": device_id, "firmware_version": fw.version, "url": download_url}
