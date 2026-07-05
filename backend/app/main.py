@@ -15,6 +15,7 @@ from app.mqtt.client import mqtt_service
 from app.services.telemetry_service import aggregate_raw_telemetry, cleanup_raw_telemetry
 from app.websockets.manager import websocket_manager
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 _AGGREGATION_INTERVAL = 60
