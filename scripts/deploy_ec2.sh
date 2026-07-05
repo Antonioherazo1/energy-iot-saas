@@ -37,8 +37,14 @@ sudo cp -r "$FRONTEND_DIR/dist/"* "$WEB_ROOT/"
 echo "==> Adding firmware nginx location if missing"
 FIRMWARE_CONF="/etc/nginx/snippets/firmware.conf"
 if [ ! -f "$FIRMWARE_CONF" ]; then
-  echo 'location /firmware/ { proxy_pass http://127.0.0.1:8000/firmware/; proxy_set_header Host $host; }' | sudo tee "$FIRMWARE_CONF" > /dev/null
+  echo 'location /firmware/ { client_max_body_size 50M; proxy_pass http://127.0.0.1:8000/firmware/; proxy_set_header Host $host; }' | sudo tee "$FIRMWARE_CONF" > /dev/null
   echo "Created $FIRMWARE_CONF"
+fi
+
+echo "==> Ensuring client_max_body_size is set globally"
+if ! grep -q "client_max_body_size" /etc/nginx/conf.d/thinc.conf 2>/dev/null; then
+  echo "Adding client_max_body_size 50M; to thinc.conf server block"
+  sudo sed -i '/^server {/a\    client_max_body_size 50M;' /etc/nginx/conf.d/thinc.conf
 fi
 # Check if the include is in the main nginx config
 if ! grep -q "firmware.conf" /etc/nginx/conf.d/thinc.conf 2>/dev/null; then

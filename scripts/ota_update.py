@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, json, io, os, mimetypes
+import sys, json, io, os, mimetypes, urllib.parse
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
@@ -29,10 +29,14 @@ def _request(method, url, headers=None, data=None, files=None):
             headers = {}
         headers["Content-Type"] = f"multipart/form-data; boundary={boundary.decode()}"
     elif data:
-        payload = json.dumps(data).encode()
-        if not headers:
-            headers = {}
-        headers.setdefault("Content-Type", "application/json")
+        ct = (headers or {}).get("Content-Type", "")
+        if ct == "application/json":
+            payload = json.dumps(data).encode()
+        else:
+            payload = urllib.parse.urlencode(data).encode()
+            if not headers:
+                headers = {}
+            headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
     else:
         payload = None
 
@@ -52,7 +56,7 @@ def main():
     password = sys.argv[4] if len(sys.argv) > 4 else "cambiame"
 
     print("==> Login...")
-    r = _request("POST", f"{API}/auth/login", data={"email": email, "password": password})
+    r = _request("POST", f"{API}/auth/login", headers={"Content-Type": "application/json"}, data={"email": email, "password": password})
     token = r["access_token"]
 
     print(f"==> Subiendo firmware v{version}...")
