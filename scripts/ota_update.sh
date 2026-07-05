@@ -18,6 +18,12 @@ fi
 echo "==> Login..."
 PY="python"
 command -v python3 >/dev/null 2>&1 && PY="python3"
+# Git Bash + Microsoft Store alias workaround
+if ! command -v "$PY" >/dev/null 2>&1 || "$PY" --version 2>&1 | grep -qi "Microsoft Store\|no se encontr"; then
+  for p in "/c/Python313/python.exe" "/c/Python312/python.exe" "/c/Python311/python.exe"; do
+    [ -x "$p" ] && { PY="$p"; break; }
+  done
+fi
 TOKEN=$(curl -sf "$API/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" \
