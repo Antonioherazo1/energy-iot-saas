@@ -43,3 +43,14 @@ bool tiempoValido() {
   time(&now);
   return now > 100000 || lastValidEpoch > 0;
 }
+
+String formatearEpoch(uint32_t epoch) {
+  time_t t = (time_t)epoch;
+  struct tm* timeinfo = gmtime(&t);
+  if (!timeinfo) {
+    return "2000-01-01 00:00:00";
+  }
+  char buf[20];
+  strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", timeinfo);
+  return String(buf);
+}
