@@ -15,9 +15,10 @@ static unsigned long ultimoIntento = 0;
 static const unsigned long INTENTO_INTERVALO = 30000;
 
 static bool descargarOTA(const String& url) {
+  WiFiClient wifi;
   HTTPClient http;
+  http.begin(wifi, url);
   http.setTimeout(120000);
-  http.begin(url);
   int code = http.GET();
   if (code != 200) {
     Serial.print("OTA HTTP error: ");
@@ -41,20 +42,40 @@ static bool descargarOTA(const String& url) {
     return false;
   }
   WiFiClient* stream = http.getStreamPtr();
-  size_t written = Update.writeStream(*stream);
-  if (written != (size_t)len) {
-    Serial.print("OTA writeStream error: escrito ");
-    Serial.print(written);
-    Serial.print(" de ");
-    Serial.println(len);
-    http.end();
-    Update.end();
-    return false;
+  uint8_t buf[256];
+  int total = 0;
+  while (total < len) {
+    int timeout = 0;
+    while (!stream->available()) {
+      delay(1);
+      if (++timeout > 5000) break;
+    }
+    if (!stream->available()) {
+      Serial.println("OTA timeout leyendo datos");
+      break;
+    }
+    int r = stream->read(buf, min((int)sizeof(buf), len - total));
+    if (r <= 0) break;
+    Update.write(buf, r);
+    total += r;
   }
   http.end();
+  Serial.print("OTA escritos ");
+  Serial.print(total);
+  Serial.print(" de ");
+  Serial.println(len);
+  if (total != len) {
+    Serial.println("OTA tamaño incorrecto");
+    return false;
+  }
+  delay(500);
   if (!Update.end()) {
     Serial.print("OTA error en Update.end: ");
     Serial.println(Update.getError());
+    return false;
+  }
+  if (!Update.isFinished()) {
+    Serial.println("OTA no finalizado");
     return false;
   }
   Serial.println("OTA completado");
