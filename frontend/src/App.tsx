@@ -1429,7 +1429,9 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
               if (hourlyData.length === 0) {
                 return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos para esta fecha</div>;
               }
-              const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+              const todayStr = new Date().toISOString().split("T")[0];
+              const maxHour = hourlyDate === todayStr ? new Date().getHours() + 1 : 24;
+              const hours = Array.from({ length: maxHour }, (_, i) => String(i).padStart(2, "0"));
               let cumKwh = 0;
               let cumCost = 0;
               const hourlyMap = new Map<number, { kwh: number; cost: number }>();
