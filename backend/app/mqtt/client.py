@@ -117,7 +117,7 @@ class MQTTService:
                 "response": payload_dict,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
-        logger.info("Respuesta MQTT procesada para %s: cmd=%s", device_id, payload_dict.get("cmd", ""))
+        logger.info("Respuesta MQTT procesada para %s: %s", device_id, payload_dict)
         if payload_dict.get("cmd") == "status":
             settings_data = payload_dict.get("settings", {})
             if settings_data:
