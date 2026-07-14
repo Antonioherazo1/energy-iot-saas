@@ -44,28 +44,27 @@ static bool descargarOTA(const String& url) {
   WiFiClient* stream = http.getStreamPtr();
   uint8_t buf[256];
   int total = 0;
+  int idle = 0;
   while (total < len) {
-    int timeout = 0;
-    while (!stream->available()) {
-      delay(1);
-      if (++timeout > 5000) break;
+    int r = stream->readBytes(buf, min((int)sizeof(buf), len - total));
+    if (r > 0) {
+      Update.write(buf, r);
+      total += r;
+      idle = 0;
+    } else {
+      if (++idle > 6000) {
+        Serial.println("OTA timeout");
+        break;
+      }
+      delay(10);
     }
-    if (!stream->available()) {
-      Serial.println("OTA timeout leyendo datos");
-      break;
-    }
-    int r = stream->read(buf, min((int)sizeof(buf), len - total));
-    if (r <= 0) break;
-    Update.write(buf, r);
-    total += r;
   }
   http.end();
-  Serial.print("OTA escritos ");
-  Serial.print(total);
-  Serial.print(" de ");
-  Serial.println(len);
   if (total != len) {
-    Serial.println("OTA tamaño incorrecto");
+    Serial.print("OTA escrito solo ");
+    Serial.print(total);
+    Serial.print(" de ");
+    Serial.println(len);
     return false;
   }
   delay(500);
