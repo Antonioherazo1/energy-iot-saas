@@ -47,6 +47,12 @@ class EnergySlopeRead(BaseModel):
     slope_cost: Decimal
 
 
+class HourlyEnergyRead(BaseModel):
+    hour: int
+    energy_kwh: Decimal
+    cost: Decimal
+
+
 class DashboardSummaryRead(BaseModel):
     total_devices: int
     online_devices: int

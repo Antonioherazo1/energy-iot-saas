@@ -15,7 +15,7 @@ import {
   getDailyEnergy,
   getDeviceChannels,
   getDeviceStatus,
-  getEnergySlope,
+  getHourlyEnergy,
   getLatestTelemetry,
   getMonthlyEnergy,
   getOrganizations,
@@ -44,7 +44,7 @@ import {
   triggerOta,
   triggerOtaAll,
 } from "./lib/api";
-import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, EnergySlope, LatestTelemetry, Organization, User } from "./types";
+import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, HourlyEnergy, LatestTelemetry, Organization, User } from "./types";
 
 const tokenKey = "energy_iot_access_token";
 const refreshKey = "energy_iot_refresh_token";
@@ -97,7 +97,6 @@ const [devices, setDevices] = useState<DeviceStatus[]>([]);
 const [latest, setLatest] = useState<LatestTelemetry[]>([]);
 const [daily, setDaily] = useState<EnergyBucket[]>([]);
 const [monthly, setMonthly] = useState<EnergyBucket[]>([]);
-const [slopeData, setSlopeData] = useState<EnergySlope[]>([]);
 const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [channelData, setChannelData] = useState<LatestTelemetry[]>([]);
   const [newDeviceKey, setNewDeviceKey] = useState("");
@@ -167,11 +166,8 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
   const [showGaps, setShowGaps] = useState(true);
-const [slopeStart, setSlopeStart] = useState(() => {
-  const d = new Date(); d.setDate(d.getDate() - 30);
-  return d.toISOString().split("T")[0];
-});
-const [slopeEnd, setSlopeEnd] = useState(() => new Date().toISOString().split("T")[0]);
+const [hourlyDate, setHourlyDate] = useState(() => new Date().toISOString().split("T")[0]);
+const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
   const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
   const [esp32Cached, setEsp32Cached] = useState(false);
   const [esp32Loading, setEsp32Loading] = useState(false);
@@ -439,18 +435,18 @@ const [slopeEnd, setSlopeEnd] = useState(() => new Date().toISOString().split("T
     return () => window.clearInterval(ltInterval);
   }, [token]);
 
-  async function loadSlopeData() {
+  async function loadHourlyData() {
     if (!token) return;
     try {
-      const data = await getEnergySlope(token, slopeStart, slopeEnd);
-      setSlopeData(data);
+      const data = await getHourlyEnergy(token, hourlyDate);
+      setHourlyData(data);
     } catch { /* ignore */ }
   }
 
   useEffect(() => {
     if (!token || !user || onboardingStep <= 3) return;
-    void loadSlopeData();
-  }, [token, user, onboardingStep, slopeStart, slopeEnd]);
+    void loadHourlyData();
+  }, [token, user, onboardingStep, hourlyDate]);
 
   async function loadBillingData() {
     if (!token) return;
@@ -1421,37 +1417,42 @@ const [slopeEnd, setSlopeEnd] = useState(() => new Date().toISOString().split("T
         </div>
 
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
-          <Panel title="Total acumulado (consumo y costo)">
+          <Panel title="Consumo horario (acumulado del día)">
             <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
               <label className="flex items-center gap-1">
-                <span className="text-slate-400">Desde</span>
-                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={slopeStart} onChange={(e) => setSlopeStart(e.target.value)} />
+                <span className="text-slate-400">Día</span>
+                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={hourlyDate} onChange={(e) => setHourlyDate(e.target.value)} />
               </label>
-              <label className="flex items-center gap-1">
-                <span className="text-slate-400">Hasta</span>
-                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={slopeEnd} onChange={(e) => setSlopeEnd(e.target.value)} />
-              </label>
-              <span className="text-slate-300">{slopeData.length} días</span>
+              <span className="text-slate-300">{hourlyData.length} horas con datos</span>
             </div>
             {(() => {
-              if (slopeData.length < 2) {
-                return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Se necesitan al menos 2 días de datos</div>;
+              if (hourlyData.length === 0) {
+                return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos para esta fecha</div>;
               }
-              const days = slopeData.map((d) => {
-                const parts = d.period.split("-");
-                return `${parts[2]}/${parts[1]}`;
-              });
+              const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
               let cumKwh = 0;
               let cumCost = 0;
-              const cumKwhData = slopeData.map((d) => { cumKwh += numeric(d.energy_kwh); return cumKwh; });
-              const cumCostData = slopeData.map((d) => { cumCost += numeric(d.cost); return cumCost; });
-              const latestKwh = cumKwhData[cumKwhData.length - 1];
-              const latestCost = cumCostData[cumCostData.length - 1];
+              const hourlyMap = new Map<number, { kwh: number; cost: number }>();
+              for (const h of hourlyData) {
+                hourlyMap.set(h.hour, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost) });
+              }
+              const cumKwhData = hours.map((_, hour) => {
+                const entry = hourlyMap.get(hour);
+                if (entry) cumKwh += entry.kwh;
+                return cumKwh;
+              });
+              const cumCostData = hours.map((_, hour) => {
+                const entry = hourlyMap.get(hour);
+                if (entry) cumCost += entry.cost;
+                return cumCost;
+              });
+              const totalKwh = cumKwh;
+              const totalCost = cumCost;
               return (
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-                    <p className="text-lg font-semibold text-ink">{latestKwh.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh total</span></p>
-                    <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(latestCost))} <span className="text-sm font-normal text-slate-500">total</span></p>
+                    <p className="text-lg font-semibold text-ink">{totalKwh.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh total</span></p>
+                    <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(totalCost))} <span className="text-sm font-normal text-slate-500">total</span></p>
                   </div>
                   <Chart option={{
                     grid: { left: 56, right: 56, top: 36, bottom: 36 },
@@ -1459,17 +1460,20 @@ const [slopeEnd, setSlopeEnd] = useState(() => new Date().toISOString().split("T
                       trigger: "axis",
                       formatter: (params: any) => {
                         const p = params[0];
-                        const d = slopeData[Number(p.dataIndex)];
-                        const cumK = cumKwhData[Number(p.dataIndex)];
-                        const cumC = cumCostData[Number(p.dataIndex)];
-                        return `<strong>${d.period}</strong><br/>Acumulado: ${cumK.toFixed(2)} kWh<br/>Acumulado: $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
+                        const hour = Number(p.name);
+                        const cumK = cumKwhData[hour];
+                        const cumC = cumCostData[hour];
+                        const entry = hourlyMap.get(hour);
+                        const hourKwh = entry ? entry.kwh : 0;
+                        const hourCost = entry ? entry.cost : 0;
+                        return `<strong>${String(hour).padStart(2, "0")}:00</strong><br/>Hora: ${hourKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(hourCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
                       },
                     },
                     legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
                     xAxis: {
                       type: "category",
-                      data: days,
-                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart), interval: Math.max(0, Math.floor(days.length / 15) - 1) },
+                      data: hours,
+                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
                     },
                     yAxis: [
                       {

@@ -702,3 +702,57 @@ def get_energy_slope(
 
     return result
 
+
+def get_hourly_energy(
+    db: Session,
+    user: User,
+    date: str,
+    organization_id: uuid.UUID | None = None,
+) -> list[dict]:
+    organization_ids = get_accessible_organization_ids(db, user, organization_id)
+    if not organization_ids:
+        return []
+
+    dt = datetime.fromisoformat(date)
+    day_start = dt.replace(hour=5, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+    day_end = day_start + timedelta(days=1)
+
+    membership = db.scalar(
+        select(OrganizationMember).where(OrganizationMember.user_id == user.id)
+    )
+    kwh_rate = Decimal("800")
+    if membership:
+        setting = db.scalar(
+            select(OrganizationSetting).where(
+                OrganizationSetting.organization_id.in_(organization_ids),
+                OrganizationSetting.key == "kwh_rate",
+            )
+        )
+        if setting:
+            kwh_rate = Decimal(setting.value)
+
+    hour_bucket = func.date_trunc("hour", Telemetry.recorded_at - COL_TZ_OFFSET).label("hour_bucket")
+    rows = db.execute(
+        select(
+            hour_bucket,
+            (func.max(Telemetry.energy_kwh) - func.min(Telemetry.energy_kwh)).label("energy_kwh"),
+        )
+        .join(Device, Device.id == Telemetry.device_id)
+        .where(
+            Device.organization_id.in_(organization_ids),
+            Telemetry.recorded_at >= day_start,
+            Telemetry.recorded_at < day_end,
+            Telemetry.energy_kwh.is_not(None),
+        )
+        .group_by(hour_bucket)
+        .order_by(hour_bucket)
+    )
+    result = []
+    for row in rows:
+        kwh = row.energy_kwh or Decimal("0")
+        result.append({
+            "hour": row.hour_bucket.hour,
+            "energy_kwh": kwh,
+            "cost": kwh * kwh_rate,
+        })
+    return result

@@ -92,3 +92,9 @@ export type EnergySlope = {
   slope_kwh: string;
   slope_cost: string;
 };
+
+export type HourlyEnergy = {
+  hour: number;
+  energy_kwh: string;
+  cost: string;
+};

@@ -6,6 +6,7 @@ import type {
   DeviceStatus,
   EnergyBucket,
   EnergySlope,
+  HourlyEnergy,
   LatestTelemetry,
   Organization,
   TokenResponse,
@@ -154,6 +155,10 @@ export function getEnergySlope(token: string, start?: string, end?: string): Pro
   if (start) params.set("start", start);
   if (end) params.set("end", end);
   return request<EnergySlope[]>(`/dashboard/energy/slope?${params}`, { token });
+}
+
+export function getHourlyEnergy(token: string, date: string): Promise<HourlyEnergy[]> {
+  return request<HourlyEnergy[]>(`/dashboard/energy/hourly?date=${date}`, { token });
 }
 
 export function getBillingMonthlyEnergy(token: string, billingStartDay: number): Promise<EnergyBucket[]> {
