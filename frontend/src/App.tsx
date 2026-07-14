@@ -1405,78 +1405,89 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         </div>
 
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
-          <Panel title="Pendiente de variación (consumo y costo)">
-            {slopeData.length < 2 ? (
-              <div className="flex items-center justify-center py-8 text-sm text-slate-500">Se necesitan al menos 2 días de datos</div>
-            ) : (
-              <Chart option={{
-                grid: { left: 56, right: 56, top: 36, bottom: 36 },
-                tooltip: {
-                  trigger: "axis",
-                  formatter: (params: any) => {
-                    const p = params[0];
-                    const d = slopeData[Number(p.dataIndex)];
-                    const kwh = numeric(d.slope_kwh);
-                    const cost = numeric(d.slope_cost);
-                    const sign = kwh >= 0 ? "+" : "";
-                    return `<strong>${d.period}</strong><br/>∆ Consumo: ${sign}${kwh.toFixed(2)} kWh<br/>∆ Costo: ${sign}$ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cost))}`;
-                  },
-                },
-                legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
-                xAxis: {
-                  type: "category",
-                  data: slopeData.map((d) => {
-                    const parts = d.period.split("-");
-                    return `${parts[2]}/${parts[1]}`;
-                  }),
-                  axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart), interval: Math.max(0, Math.floor(slopeData.length / 15) - 1) },
-                },
-                yAxis: [
-                  {
-                    type: "value",
-                    name: "kWh/día",
-                    nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
-                    axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                    splitLine: { lineStyle: { color: "#e4e8ef" } },
-                  },
-                  {
-                    type: "value",
-                    name: "COP/día",
-                    nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
-                    axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                    splitLine: { show: false },
-                  },
-                ],
-                series: [
-                  {
-                    name: "∆ Consumo",
-                    type: "bar",
-                    yAxisIndex: 0,
-                    data: slopeData.map((d) => {
-                      const v = numeric(d.slope_kwh);
-                      return {
-                        value: v,
-                        itemStyle: { color: v >= 0 ? "#16a34a" : "#dc2626", opacity: 0.85 },
-                        emphasis: { itemStyle: { color: v >= 0 ? "#16a34a" : "#dc2626", opacity: 1 } },
-                      };
-                    }),
-                  },
-                  {
-                    name: "∆ Costo",
-                    type: "bar",
-                    yAxisIndex: 1,
-                    data: slopeData.map((d) => {
-                      const v = numeric(d.slope_cost);
-                      return {
-                        value: v,
-                        itemStyle: { color: v >= 0 ? "#16a34a" : "#dc2626", opacity: 0.4 },
-                        emphasis: { itemStyle: { color: v >= 0 ? "#16a34a" : "#dc2626", opacity: 0.6 } },
-                      };
-                    }),
-                  },
-                ],
-              }} />
-            )}
+          <Panel title="Total acumulado (consumo y costo)">
+            {(() => {
+              if (slopeData.length < 2) {
+                return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Se necesitan al menos 2 días de datos</div>;
+              }
+              const days = slopeData.map((d) => {
+                const parts = d.period.split("-");
+                return `${parts[2]}/${parts[1]}`;
+              });
+              let cumKwh = 0;
+              let cumCost = 0;
+              const cumKwhData = slopeData.map((d) => { cumKwh += numeric(d.energy_kwh); return cumKwh; });
+              const cumCostData = slopeData.map((d) => { cumCost += numeric(d.cost); return cumCost; });
+              const latestKwh = cumKwhData[cumKwhData.length - 1];
+              const latestCost = cumCostData[cumCostData.length - 1];
+              return (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+                    <p className="text-lg font-semibold text-ink">{latestKwh.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh total</span></p>
+                    <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(latestCost))} <span className="text-sm font-normal text-slate-500">total</span></p>
+                  </div>
+                  <Chart option={{
+                    grid: { left: 56, right: 56, top: 36, bottom: 36 },
+                    tooltip: {
+                      trigger: "axis",
+                      formatter: (params: any) => {
+                        const p = params[0];
+                        const d = slopeData[Number(p.dataIndex)];
+                        const cumK = cumKwhData[Number(p.dataIndex)];
+                        const cumC = cumCostData[Number(p.dataIndex)];
+                        return `<strong>${d.period}</strong><br/>Acumulado: ${cumK.toFixed(2)} kWh<br/>Acumulado: $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
+                      },
+                    },
+                    legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
+                    xAxis: {
+                      type: "category",
+                      data: days,
+                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart), interval: Math.max(0, Math.floor(days.length / 15) - 1) },
+                    },
+                    yAxis: [
+                      {
+                        type: "value",
+                        name: "kWh",
+                        nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
+                        axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                        splitLine: { lineStyle: { color: "#e4e8ef" } },
+                      },
+                      {
+                        type: "value",
+                        name: "COP",
+                        nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
+                        axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                        splitLine: { show: false },
+                      },
+                    ],
+                    series: [
+                      {
+                        name: "Consumo (kWh)",
+                        type: "line",
+                        yAxisIndex: 0,
+                        smooth: true,
+                        symbol: "circle",
+                        symbolSize: 6,
+                        data: cumKwhData,
+                        lineStyle: { color: "#2563eb", width: 2.5 },
+                        areaStyle: { color: "#2563eb", opacity: 0.08 },
+                      },
+                      {
+                        name: "Costo (COP)",
+                        type: "line",
+                        yAxisIndex: 1,
+                        smooth: true,
+                        symbol: "circle",
+                        symbolSize: 6,
+                        data: cumCostData,
+                        lineStyle: { color: "#d97706", width: 2.5 },
+                        areaStyle: { color: "#d97706", opacity: 0.08 },
+                      },
+                    ],
+                  }} />
+                </div>
+              );
+            })()}
           </Panel>
         </div>
 
