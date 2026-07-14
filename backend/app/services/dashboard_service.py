@@ -731,12 +731,8 @@ def get_hourly_energy(
         if setting:
             kwh_rate = Decimal(setting.value)
 
-    hour_bucket = func.date_trunc("hour", Telemetry.recorded_at - COL_TZ_OFFSET).label("hour_bucket")
     rows = db.execute(
-        select(
-            hour_bucket,
-            (func.max(Telemetry.energy_kwh) - func.min(Telemetry.energy_kwh)).label("energy_kwh"),
-        )
+        select(Telemetry.recorded_at, Telemetry.energy_kwh)
         .join(Device, Device.id == Telemetry.device_id)
         .where(
             Device.organization_id.in_(organization_ids),
@@ -744,15 +740,23 @@ def get_hourly_energy(
             Telemetry.recorded_at < day_end,
             Telemetry.energy_kwh.is_not(None),
         )
-        .group_by(hour_bucket)
-        .order_by(hour_bucket)
+        .order_by(Telemetry.recorded_at)
     )
-    result = []
+    hourly: dict[int, list[Decimal]] = {}
     for row in rows:
-        kwh = row.energy_kwh or Decimal("0")
+        col_time = row.recorded_at - timedelta(hours=5)
+        hour = col_time.hour
+        if hour not in hourly:
+            hourly[hour] = []
+        hourly[hour].append(row.energy_kwh)
+
+    result = []
+    for hour in sorted(hourly.keys()):
+        values = hourly[hour]
+        kwh = max(values) - min(values)
         result.append({
-            "hour": row.hour_bucket.hour,
-            "energy_kwh": kwh,
+            "hour": hour,
+            "energy_kwh": kwh or Decimal("0"),
             "cost": kwh * kwh_rate,
         })
     return result

@@ -1457,7 +1457,7 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                     <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(totalCost))} <span className="text-sm font-normal text-slate-500">total</span></p>
                   </div>
                   <Chart option={{
-                    grid: { left: 48, right: 56, top: 36, bottom: 36 },
+                    grid: { left: 52, right: 12, top: 42, bottom: 36 },
                     tooltip: {
                       trigger: "axis",
                       confine: true,
@@ -1482,8 +1482,6 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                     },
                     yAxis: {
                       type: "value",
-                      name: "kWh",
-                      nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
                       axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
                       splitLine: { lineStyle: { color: "#e4e8ef" } },
                     },
