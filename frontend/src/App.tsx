@@ -1489,6 +1489,8 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                     },
                     yAxis: {
                       type: "value",
+                      min: 0,
+                      max: 15,
                       name: "kWh",
                       nameTextStyle: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
                       axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
