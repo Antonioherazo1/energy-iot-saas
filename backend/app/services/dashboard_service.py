@@ -742,20 +742,20 @@ def get_hourly_energy(
         )
         .order_by(Telemetry.recorded_at)
     )
-    hourly: dict[int, list[Decimal]] = {}
+    buckets: dict[str, list[Decimal]] = {}
     for row in rows:
         col_time = row.recorded_at - timedelta(hours=5)
-        hour = col_time.hour
-        if hour not in hourly:
-            hourly[hour] = []
-        hourly[hour].append(row.energy_kwh)
+        minute_key = f"{col_time.hour:02d}:{col_time.minute // 10 * 10:02d}"
+        if minute_key not in buckets:
+            buckets[minute_key] = []
+        buckets[minute_key].append(row.energy_kwh)
 
     result = []
-    for hour in sorted(hourly.keys()):
-        values = hourly[hour]
+    for minute_key in sorted(buckets.keys()):
+        values = buckets[minute_key]
         kwh = max(values) - min(values)
         result.append({
-            "hour": hour,
+            "time": minute_key,
             "energy_kwh": kwh or Decimal("0"),
             "cost": kwh * kwh_rate,
         })

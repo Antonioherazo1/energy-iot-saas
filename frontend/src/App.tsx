@@ -1430,21 +1430,27 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                 return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos para esta fecha</div>;
               }
               const todayStr = new Date().toISOString().split("T")[0];
-              const maxHour = hourlyDate === todayStr ? new Date().getHours() + 1 : 24;
-              const hours = Array.from({ length: maxHour }, (_, i) => String(i).padStart(2, "0"));
+              const now = new Date();
+              const maxSlots = hourlyDate === todayStr ? now.getHours() * 6 + Math.floor(now.getMinutes() / 10) + 1 : 144;
+              const timeSlots: string[] = [];
+              for (let i = 0; i < maxSlots; i++) {
+                const h = Math.floor(i / 6);
+                const m = (i % 6) * 10;
+                timeSlots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+              }
               let cumKwh = 0;
               let cumCost = 0;
-              const hourlyMap = new Map<number, { kwh: number; cost: number }>();
+              const slotMap = new Map<string, { kwh: number; cost: number }>();
               for (const h of hourlyData) {
-                hourlyMap.set(h.hour, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost) });
+                slotMap.set(h.time, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost) });
               }
-              const cumKwhData = hours.map((_, hour) => {
-                const entry = hourlyMap.get(hour);
+              const cumKwhData = timeSlots.map((t) => {
+                const entry = slotMap.get(t);
                 if (entry) cumKwh += entry.kwh;
                 return cumKwh;
               });
-              const cumCostData = hours.map((_, hour) => {
-                const entry = hourlyMap.get(hour);
+              const cumCostData = timeSlots.map((t) => {
+                const entry = slotMap.get(t);
                 if (entry) cumCost += entry.cost;
                 return cumCost;
               });
@@ -1465,20 +1471,26 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                       triggerOn: "mousemove|click",
                       formatter: (params: any) => {
                         const p = params[0];
-                        const hour = Number(p.name);
-                        const cumK = cumKwhData[hour];
-                        const cumC = cumCostData[hour];
-                        const entry = hourlyMap.get(hour);
-                        const hourKwh = entry ? entry.kwh : 0;
-                        const hourCost = entry ? entry.cost : 0;
-                        return `<strong>${String(hour).padStart(2, "0")}:00</strong><br/>Hora: ${hourKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(hourCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
+                        const time = p.name;
+                        const idx = timeSlots.indexOf(time);
+                        const cumK = cumKwhData[idx];
+                        const cumC = cumCostData[idx];
+                        const entry = slotMap.get(time);
+                        const slotKwh = entry ? entry.kwh : 0;
+                        const slotCost = entry ? entry.cost : 0;
+                        return `<strong>${time}</strong><br/>Intervalo: ${slotKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(slotCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
                       },
                     },
                     legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
                     xAxis: {
                       type: "category",
-                      data: hours,
-                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                      data: timeSlots,
+                      axisLabel: {
+                        color: "#526071",
+                        fontSize: lsz(11, rowFontScales.chart),
+                        interval: 5,
+                        formatter: (v: string) => v.endsWith(":00") ? v.slice(0, 2) : "",
+                      },
                     },
                     yAxis: {
                       type: "value",
@@ -1490,8 +1502,7 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                         name: "Consumo (kWh)",
                         type: "line",
                         smooth: true,
-                        symbol: "circle",
-                        symbolSize: 6,
+                        symbol: "none",
                         data: cumKwhData,
                         lineStyle: { color: "#2563eb", width: 2.5 },
                         areaStyle: { color: "#2563eb", opacity: 0.08 },
@@ -1500,8 +1511,7 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                         name: "Costo (COP)",
                         type: "line",
                         smooth: true,
-                        symbol: "circle",
-                        symbolSize: 6,
+                        symbol: "none",
                         data: cumCostData,
                         lineStyle: { color: "#d97706", width: 2.5 },
                         areaStyle: { color: "#d97706", opacity: 0.08 },

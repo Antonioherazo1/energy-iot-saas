@@ -48,7 +48,7 @@ class EnergySlopeRead(BaseModel):
 
 
 class HourlyEnergyRead(BaseModel):
-    hour: int
+    time: str
     energy_kwh: Decimal
     cost: Decimal
 
