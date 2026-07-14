@@ -1439,49 +1439,35 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                 timeSlots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
               }
               let cumKwh = 0;
-              let cumCost = 0;
-              const slotMap = new Map<string, { kwh: number; cost: number }>();
+              const slotMap = new Map<string, number>();
               for (const h of hourlyData) {
-                slotMap.set(h.time, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost) });
+                slotMap.set(h.time, numeric(h.energy_kwh));
               }
               const cumKwhData = timeSlots.map((t) => {
-                const entry = slotMap.get(t);
-                if (entry) cumKwh += entry.kwh;
+                const slotKwh = slotMap.get(t);
+                if (slotKwh) cumKwh += slotKwh;
                 return cumKwh;
               });
-              const cumCostData = timeSlots.map((t) => {
-                const entry = slotMap.get(t);
-                if (entry) cumCost += entry.cost;
-                return cumCost;
-              });
               const totalKwh = cumKwh;
-              const totalCost = cumCost;
               return (
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
                     <p className="text-lg font-semibold text-ink">{totalKwh.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh total</span></p>
-                    <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(totalCost))} <span className="text-sm font-normal text-slate-500">total</span></p>
                   </div>
                   <Chart option={{
-                    grid: { left: 52, right: 60, top: 42, bottom: 36 },
+                    grid: { left: 52, right: 12, top: 42, bottom: 36 },
                     tooltip: {
                       trigger: "axis",
                       confine: true,
-                      alwaysShowContent: true,
-                      triggerOn: "mousemove|click",
                       formatter: (params: any) => {
                         const p = params[0];
                         const time = p.name;
                         const idx = timeSlots.indexOf(time);
                         const cumK = cumKwhData[idx];
-                        const cumC = cumCostData[idx];
-                        const entry = slotMap.get(time);
-                        const slotKwh = entry ? entry.kwh : 0;
-                        const slotCost = entry ? entry.cost : 0;
-                        return `<strong>${time}</strong><br/>Intervalo: ${slotKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(slotCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
+                        const slotKwh = slotMap.get(time) ?? 0;
+                        return `<strong>${time}</strong><br/>Intervalo: ${slotKwh.toFixed(2)} kWh<br/>Acumulado: ${cumK.toFixed(2)} kWh`;
                       },
                     },
-                    legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
                     xAxis: {
                       type: "category",
                       data: timeSlots,
@@ -1492,42 +1478,21 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                         formatter: (v: string) => v.endsWith(":00") ? v.slice(0, 2) : "",
                       },
                     },
-                    yAxis: [
-                      {
-                        type: "value",
-                        name: "kWh",
-                        nameTextStyle: { color: "#2563eb", fontSize: lsz(11, rowFontScales.chart) },
-                        axisLabel: { color: "#2563eb", fontSize: lsz(11, rowFontScales.chart) },
-                        splitLine: { lineStyle: { color: "#e4e8ef" } },
-                      },
-                      {
-                        type: "value",
-                        name: "COP",
-                        nameTextStyle: { color: "#d97706", fontSize: lsz(11, rowFontScales.chart) },
-                        axisLabel: { color: "#d97706", fontSize: lsz(11, rowFontScales.chart) },
-                        splitLine: { show: false },
-                      },
-                    ],
+                    yAxis: {
+                      type: "value",
+                      name: "kWh",
+                      nameTextStyle: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                      splitLine: { lineStyle: { color: "#e4e8ef" } },
+                    },
                     series: [
                       {
-                        name: "Consumo (kWh)",
                         type: "line",
-                        yAxisIndex: 0,
                         smooth: true,
                         symbol: "none",
                         data: cumKwhData,
                         lineStyle: { color: "#2563eb", width: 2.5 },
                         areaStyle: { color: "#2563eb", opacity: 0.08 },
-                      },
-                      {
-                        name: "Costo (COP)",
-                        type: "line",
-                        yAxisIndex: 1,
-                        smooth: true,
-                        symbol: "none",
-                        data: cumCostData,
-                        lineStyle: { color: "#d97706", width: 2.5 },
-                        areaStyle: { color: "#d97706", opacity: 0.08 },
                       },
                     ],
                   }} />
