@@ -1439,14 +1439,20 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                 timeSlots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
               }
               let cumKwh = 0;
-              const slotMap = new Map<string, number>();
+              let cumCost = 0;
+              const slotMap = new Map<string, { kwh: number; cost: number }>();
               for (const h of hourlyData) {
-                slotMap.set(h.time, numeric(h.energy_kwh));
+                slotMap.set(h.time, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost) });
               }
               const cumKwhData = timeSlots.map((t) => {
-                const slotKwh = slotMap.get(t);
-                if (slotKwh) cumKwh += slotKwh;
+                const entry = slotMap.get(t);
+                if (entry) cumKwh += entry.kwh;
                 return cumKwh;
+              });
+              const cumCostData = timeSlots.map((t) => {
+                const entry = slotMap.get(t);
+                if (entry) cumCost += entry.cost;
+                return cumCost;
               });
               const totalKwh = cumKwh;
               return (
@@ -1464,8 +1470,11 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                         const time = p.name;
                         const idx = timeSlots.indexOf(time);
                         const cumK = cumKwhData[idx];
-                        const slotKwh = slotMap.get(time) ?? 0;
-                        return `<strong>${time}</strong><br/>Intervalo: ${slotKwh.toFixed(2)} kWh<br/>Acumulado: ${cumK.toFixed(2)} kWh`;
+                        const cumC = cumCostData[idx];
+                        const entry = slotMap.get(time);
+                        const slotKwh = entry ? entry.kwh : 0;
+                        const slotCost = entry ? entry.cost : 0;
+                        return `<strong>${time}</strong><br/>Intervalo: ${slotKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(slotCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
                       },
                     },
                     xAxis: {
