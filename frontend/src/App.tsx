@@ -167,6 +167,11 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
   const [showGaps, setShowGaps] = useState(true);
+const [slopeStart, setSlopeStart] = useState(() => {
+  const d = new Date(); d.setDate(d.getDate() - 30);
+  return d.toISOString().split("T")[0];
+});
+const [slopeEnd, setSlopeEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
   const [esp32Cached, setEsp32Cached] = useState(false);
   const [esp32Loading, setEsp32Loading] = useState(false);
@@ -188,7 +193,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     setLoading(true);
     setError("");
     try {
-      const [currentUser, orgData, summaryData, deviceData, latestData, dailyData, monthlyData, channels, slope] = await Promise.all([
+      const [currentUser, orgData, summaryData, deviceData, latestData, dailyData, monthlyData, channels] = await Promise.all([
         getCurrentUser(activeToken),
         getOrganizations(activeToken),
         getSummary(activeToken),
@@ -197,7 +202,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         getDailyEnergy(activeToken),
         getMonthlyEnergy(activeToken),
         getChannelTimeSeries(activeToken),
-        getEnergySlope(activeToken),
         getDbSize(activeToken).then((r) => setDbSize(r.size_mb)).catch(() => {}),
       ]);
       setUser(currentUser);
@@ -207,7 +211,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       setLatest(latestData);
       setDaily(dailyData.reverse());
       setMonthly(monthlyData.reverse());
-      setSlopeData(slope);
       setChannelData(channels);
       setLastUpdatedAt(new Date());
       getSetting(activeToken, "completenessMinRecords", "1000").then((r) => setCompletenessMinRecords(Number(r.value))).catch(() => {});
@@ -435,6 +438,19 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     const ltInterval = window.setInterval(() => void pollLatestTelemetry(), 3000);
     return () => window.clearInterval(ltInterval);
   }, [token]);
+
+  async function loadSlopeData() {
+    if (!token) return;
+    try {
+      const data = await getEnergySlope(token, slopeStart, slopeEnd);
+      setSlopeData(data);
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => {
+    if (!token || !user || onboardingStep <= 3) return;
+    void loadSlopeData();
+  }, [token, user, onboardingStep, slopeStart, slopeEnd]);
 
   async function loadBillingData() {
     if (!token) return;
@@ -1406,6 +1422,17 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
 
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
           <Panel title="Total acumulado (consumo y costo)">
+            <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Desde</span>
+                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={slopeStart} onChange={(e) => setSlopeStart(e.target.value)} />
+              </label>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Hasta</span>
+                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={slopeEnd} onChange={(e) => setSlopeEnd(e.target.value)} />
+              </label>
+              <span className="text-slate-300">{slopeData.length} días</span>
+            </div>
             {(() => {
               if (slopeData.length < 2) {
                 return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Se necesitan al menos 2 días de datos</div>;

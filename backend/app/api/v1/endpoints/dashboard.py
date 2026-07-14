@@ -71,10 +71,14 @@ def energy_daily(
 def energy_slope(
     organization_id: uuid.UUID | None = None,
     limit: int = Query(default=30, ge=1, le=365),
+    start: str | None = Query(default=None, description="ISO date YYYY-MM-DD (inicio)"),
+    end: str | None = Query(default=None, description="ISO date YYYY-MM-DD (fin)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    return get_energy_slope(db=db, user=current_user, limit=limit, organization_id=organization_id)
+    start_date = datetime.fromisoformat(start).replace(tzinfo=timezone.utc) if start else None
+    end_date = (datetime.fromisoformat(end).replace(hour=23, minute=59, second=59, microsecond=0, tzinfo=timezone.utc) if end else None)
+    return get_energy_slope(db=db, user=current_user, limit=limit, organization_id=organization_id, start_date=start_date, end_date=end_date)
 
 
 @router.get("/channels/latest")

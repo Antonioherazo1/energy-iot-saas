@@ -566,13 +566,19 @@ def recalculate_daily_energy(
     user: User,
     days: int = 30,
     organization_id: uuid.UUID | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
 ) -> list[dict]:
     organization_ids = get_accessible_organization_ids(db, user, organization_id)
     if not organization_ids:
         return []
 
     now = datetime.now(timezone.utc)
-    start = now - timedelta(days=days)
+    start = start_date if start_date else (now - timedelta(days=days))
+
+    filters = [Device.organization_id.in_(organization_ids), Telemetry.recorded_at >= start]
+    if end_date:
+        filters.append(Telemetry.recorded_at <= end_date)
 
     c1 = aliased(DeviceChannel, name="c1")
     c2 = aliased(DeviceChannel, name="c2")
@@ -609,10 +615,7 @@ def recalculate_daily_energy(
         .outerjoin(c2, and_(c2.device_id == Telemetry.device_id, c2.channel_number == 2, c2.is_active == True))
         .outerjoin(c3, and_(c3.device_id == Telemetry.device_id, c3.channel_number == 3, c3.is_active == True))
         .outerjoin(c4, and_(c4.device_id == Telemetry.device_id, c4.channel_number == 4, c4.is_active == True))
-        .where(
-            Device.organization_id.in_(organization_ids),
-            Telemetry.recorded_at >= start,
-        )
+        .where(and_(*filters))
         .cte("recalc_cte")
     )
 
@@ -658,12 +661,14 @@ def get_energy_slope(
     user: User,
     organization_id: uuid.UUID | None = None,
     limit: int = 30,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
 ) -> list[dict]:
     organization_ids = get_accessible_organization_ids(db, user, organization_id)
     if not organization_ids:
         return []
 
-    daily = recalculate_daily_energy(db=db, user=user, days=limit, organization_id=organization_id)
+    daily = recalculate_daily_energy(db=db, user=user, days=limit, organization_id=organization_id, start_date=start_date, end_date=end_date)
 
     membership = db.scalar(
         select(OrganizationMember).where(OrganizationMember.user_id == user.id)

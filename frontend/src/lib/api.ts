@@ -149,8 +149,11 @@ export function getMonthlyEnergy(token: string): Promise<EnergyBucket[]> {
   return request<EnergyBucket[]>("/dashboard/energy/monthly?limit=12", { token });
 }
 
-export function getEnergySlope(token: string): Promise<EnergySlope[]> {
-  return request<EnergySlope[]>("/dashboard/energy/slope?limit=30", { token });
+export function getEnergySlope(token: string, start?: string, end?: string): Promise<EnergySlope[]> {
+  const params = new URLSearchParams({ limit: "365" });
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  return request<EnergySlope[]>(`/dashboard/energy/slope?${params}`, { token });
 }
 
 export function getBillingMonthlyEnergy(token: string, billingStartDay: number): Promise<EnergyBucket[]> {
