@@ -15,6 +15,7 @@ import {
   getDailyEnergy,
   getDeviceChannels,
   getDeviceStatus,
+  getEnergySlope,
   getLatestTelemetry,
   getMonthlyEnergy,
   getOrganizations,
@@ -43,7 +44,7 @@ import {
   triggerOta,
   triggerOtaAll,
 } from "./lib/api";
-import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
+import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, EnergySlope, LatestTelemetry, Organization, User } from "./types";
 
 const tokenKey = "energy_iot_access_token";
 const refreshKey = "energy_iot_refresh_token";
@@ -96,6 +97,7 @@ const [devices, setDevices] = useState<DeviceStatus[]>([]);
 const [latest, setLatest] = useState<LatestTelemetry[]>([]);
 const [daily, setDaily] = useState<EnergyBucket[]>([]);
 const [monthly, setMonthly] = useState<EnergyBucket[]>([]);
+const [slopeData, setSlopeData] = useState<EnergySlope[]>([]);
 const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [channelData, setChannelData] = useState<LatestTelemetry[]>([]);
   const [newDeviceKey, setNewDeviceKey] = useState("");
@@ -186,7 +188,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     setLoading(true);
     setError("");
     try {
-      const [currentUser, orgData, summaryData, deviceData, latestData, dailyData, monthlyData, channels] = await Promise.all([
+      const [currentUser, orgData, summaryData, deviceData, latestData, dailyData, monthlyData, channels, slope] = await Promise.all([
         getCurrentUser(activeToken),
         getOrganizations(activeToken),
         getSummary(activeToken),
@@ -195,6 +197,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
         getDailyEnergy(activeToken),
         getMonthlyEnergy(activeToken),
         getChannelTimeSeries(activeToken),
+        getEnergySlope(activeToken),
         getDbSize(activeToken).then((r) => setDbSize(r.size_mb)).catch(() => {}),
       ]);
       setUser(currentUser);
@@ -204,6 +207,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
       setLatest(latestData);
       setDaily(dailyData.reverse());
       setMonthly(monthlyData.reverse());
+      setSlopeData(slope);
       setChannelData(channels);
       setLastUpdatedAt(new Date());
       getSetting(activeToken, "completenessMinRecords", "1000").then((r) => setCompletenessMinRecords(Number(r.value))).catch(() => {});
@@ -1397,6 +1401,82 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
                 </div>
               );
             })()}
+          </Panel>
+        </div>
+
+        <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
+          <Panel title="Pendiente de variación (consumo y costo)">
+            {slopeData.length < 2 ? (
+              <div className="flex items-center justify-center py-8 text-sm text-slate-500">Se necesitan al menos 2 días de datos</div>
+            ) : (
+              <Chart option={{
+                grid: { left: 56, right: 56, top: 36, bottom: 36 },
+                tooltip: {
+                  trigger: "axis",
+                  formatter: (params: any) => {
+                    const p = params[0];
+                    const d = slopeData[Number(p.dataIndex)];
+                    const kwh = numeric(d.slope_kwh);
+                    const cost = numeric(d.slope_cost);
+                    const sign = kwh >= 0 ? "+" : "";
+                    return `<strong>${d.period}</strong><br/>∆ Consumo: ${sign}${kwh.toFixed(2)} kWh<br/>∆ Costo: ${sign}$ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cost))}`;
+                  },
+                },
+                legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
+                xAxis: {
+                  type: "category",
+                  data: slopeData.map((d) => {
+                    const parts = d.period.split("-");
+                    return `${parts[2]}/${parts[1]}`;
+                  }),
+                  axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart), interval: Math.max(0, Math.floor(slopeData.length / 15) - 1) },
+                },
+                yAxis: [
+                  {
+                    type: "value",
+                    name: "kWh/día",
+                    nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
+                    axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                    splitLine: { lineStyle: { color: "#e4e8ef" } },
+                  },
+                  {
+                    type: "value",
+                    name: "COP/día",
+                    nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
+                    axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                    splitLine: { show: false },
+                  },
+                ],
+                series: [
+                  {
+                    name: "∆ Consumo",
+                    type: "bar",
+                    yAxisIndex: 0,
+                    data: slopeData.map((d) => {
+                      const v = numeric(d.slope_kwh);
+                      return {
+                        value: v,
+                        itemStyle: { color: v >= 0 ? "#16a34a" : "#dc2626", opacity: 0.85 },
+                        emphasis: { itemStyle: { color: v >= 0 ? "#16a34a" : "#dc2626", opacity: 1 } },
+                      };
+                    }),
+                  },
+                  {
+                    name: "∆ Costo",
+                    type: "bar",
+                    yAxisIndex: 1,
+                    data: slopeData.map((d) => {
+                      const v = numeric(d.slope_cost);
+                      return {
+                        value: v,
+                        itemStyle: { color: v >= 0 ? "#16a34a" : "#dc2626", opacity: 0.4 },
+                        emphasis: { itemStyle: { color: v >= 0 ? "#16a34a" : "#dc2626", opacity: 0.6 } },
+                      };
+                    }),
+                  },
+                ],
+              }} />
+            )}
           </Panel>
         </div>
 

@@ -39,6 +39,14 @@ class EnergyBucketRead(BaseModel):
     record_count: int = 0
 
 
+class EnergySlopeRead(BaseModel):
+    period: date
+    energy_kwh: Decimal
+    cost: Decimal
+    slope_kwh: Decimal
+    slope_cost: Decimal
+
+
 class DashboardSummaryRead(BaseModel):
     total_devices: int
     online_devices: int

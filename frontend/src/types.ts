@@ -84,3 +84,11 @@ export type EnergyBucket = {
   energy_kwh: string;
   record_count?: number;
 };
+
+export type EnergySlope = {
+  period: string;
+  energy_kwh: string;
+  cost: string;
+  slope_kwh: string;
+  slope_cost: string;
+};

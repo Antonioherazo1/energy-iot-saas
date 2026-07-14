@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, aliased
 from app.models.channel import DeviceChannel
 from app.models.device import Device
 from app.models.organization import OrganizationMember
+from app.models.setting import OrganizationSetting
 from app.models.raw_telemetry import RawTelemetry
 from app.models.telemetry import Telemetry
 from app.models.user import User
@@ -650,4 +651,49 @@ def get_summary(
         "current_power": current_power,
         "latest_energy_kwh": latest_energy_kwh,
     }
+
+
+def get_energy_slope(
+    db: Session,
+    user: User,
+    organization_id: uuid.UUID | None = None,
+    limit: int = 30,
+) -> list[dict]:
+    organization_ids = get_accessible_organization_ids(db, user, organization_id)
+    if not organization_ids:
+        return []
+
+    daily = recalculate_daily_energy(db=db, user=user, days=limit, organization_id=organization_id)
+
+    membership = db.scalar(
+        select(OrganizationMember).where(OrganizationMember.user_id == user.id)
+    )
+    kwh_rate = Decimal("800")
+    if membership:
+        setting = db.scalar(
+            select(OrganizationSetting).where(
+                OrganizationSetting.organization_id.in_(organization_ids),
+                OrganizationSetting.key == "kwh_rate",
+            )
+        )
+        if setting:
+            kwh_rate = Decimal(setting.value)
+
+    result = []
+    prev_kwh = Decimal("0")
+    for item in daily:
+        kwh = item["energy_kwh"]
+        cost = kwh * kwh_rate
+        slope_kwh = kwh - prev_kwh
+        slope_cost = slope_kwh * kwh_rate
+        result.append({
+            "period": item["period"],
+            "energy_kwh": kwh,
+            "cost": cost,
+            "slope_kwh": slope_kwh,
+            "slope_cost": slope_cost,
+        })
+        prev_kwh = kwh
+
+    return result
 
