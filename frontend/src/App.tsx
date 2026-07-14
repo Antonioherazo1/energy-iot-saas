@@ -1457,9 +1457,10 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                     <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(totalCost))} <span className="text-sm font-normal text-slate-500">total</span></p>
                   </div>
                   <Chart option={{
-                    grid: { left: 56, right: 56, top: 36, bottom: 36 },
+                    grid: { left: 8, right: 56, top: 36, bottom: 36 },
                     tooltip: {
                       trigger: "axis",
+                      confine: true,
                       formatter: (params: any) => {
                         const p = params[0];
                         const hour = Number(p.name);
@@ -1477,27 +1478,17 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                       data: hours,
                       axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
                     },
-                    yAxis: [
-                      {
-                        type: "value",
-                        name: "kWh",
-                        nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
-                        axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                        splitLine: { lineStyle: { color: "#e4e8ef" } },
-                      },
-                      {
-                        type: "value",
-                        name: "COP",
-                        nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
-                        axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                        splitLine: { show: false },
-                      },
-                    ],
+                    yAxis: {
+                      type: "value",
+                      name: "kWh",
+                      nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
+                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                      splitLine: { lineStyle: { color: "#e4e8ef" } },
+                    },
                     series: [
                       {
                         name: "Consumo (kWh)",
                         type: "line",
-                        yAxisIndex: 0,
                         smooth: true,
                         symbol: "circle",
                         symbolSize: 6,
@@ -1508,7 +1499,6 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                       {
                         name: "Costo (COP)",
                         type: "line",
-                        yAxisIndex: 1,
                         smooth: true,
                         symbol: "circle",
                         symbolSize: 6,
