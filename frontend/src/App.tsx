@@ -1463,7 +1463,7 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                     <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(totalCost))} <span className="text-sm font-normal text-slate-500">total</span></p>
                   </div>
                   <Chart option={{
-                    grid: { left: 52, right: 12, top: 42, bottom: 36 },
+                    grid: { left: 52, right: 60, top: 42, bottom: 36 },
                     tooltip: {
                       trigger: "axis",
                       confine: true,
@@ -1492,15 +1492,27 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                         formatter: (v: string) => v.endsWith(":00") ? v.slice(0, 2) : "",
                       },
                     },
-                    yAxis: {
-                      type: "value",
-                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                      splitLine: { lineStyle: { color: "#e4e8ef" } },
-                    },
+                    yAxis: [
+                      {
+                        type: "value",
+                        name: "kWh",
+                        nameTextStyle: { color: "#2563eb", fontSize: lsz(11, rowFontScales.chart) },
+                        axisLabel: { color: "#2563eb", fontSize: lsz(11, rowFontScales.chart) },
+                        splitLine: { lineStyle: { color: "#e4e8ef" } },
+                      },
+                      {
+                        type: "value",
+                        name: "COP",
+                        nameTextStyle: { color: "#d97706", fontSize: lsz(11, rowFontScales.chart) },
+                        axisLabel: { color: "#d97706", fontSize: lsz(11, rowFontScales.chart) },
+                        splitLine: { show: false },
+                      },
+                    ],
                     series: [
                       {
                         name: "Consumo (kWh)",
                         type: "line",
+                        yAxisIndex: 0,
                         smooth: true,
                         symbol: "none",
                         data: cumKwhData,
@@ -1510,6 +1522,7 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                       {
                         name: "Costo (COP)",
                         type: "line",
+                        yAxisIndex: 1,
                         smooth: true,
                         symbol: "none",
                         data: cumCostData,
