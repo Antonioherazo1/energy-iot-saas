@@ -157,8 +157,10 @@ export function getEnergySlope(token: string, start?: string, end?: string): Pro
   return request<EnergySlope[]>(`/dashboard/energy/slope?${params}`, { token });
 }
 
-export function getHourlyEnergy(token: string, date: string): Promise<HourlyEnergy[]> {
-  return request<HourlyEnergy[]>(`/dashboard/energy/hourly?date=${date}`, { token });
+export function getHourlyEnergy(token: string, date: string, bucketSeconds?: number): Promise<HourlyEnergy[]> {
+  let path = `/dashboard/energy/hourly?date=${date}`;
+  if (bucketSeconds) path += `&bucket_seconds=${bucketSeconds}`;
+  return request<HourlyEnergy[]>(path, { token });
 }
 
 export function getBillingMonthlyEnergy(token: string, billingStartDay: number): Promise<EnergyBucket[]> {

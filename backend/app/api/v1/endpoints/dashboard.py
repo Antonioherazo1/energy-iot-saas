@@ -84,11 +84,12 @@ def energy_slope(
 @router.get("/energy/hourly", response_model=list[HourlyEnergyRead])
 def energy_hourly(
     date: str = Query(description="ISO date YYYY-MM-DD"),
+    bucket_seconds: int = Query(default=600, ge=10, le=3600, description="Bucket size in seconds"),
     organization_id: uuid.UUID | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    return get_hourly_energy(db=db, user=current_user, date=date, organization_id=organization_id)
+    return get_hourly_energy(db=db, user=current_user, date=date, organization_id=organization_id, bucket_seconds=bucket_seconds)
 
 
 @router.get("/channels/latest")

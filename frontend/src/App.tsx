@@ -166,7 +166,6 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   });
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
-  const [showGaps, setShowGaps] = useState(true);
 const [channelMode, setChannelMode] = useState<"10min" | "1hour" | "today" | "custom">("10min");
 const [channelSeriesData, setChannelSeriesData] = useState<LatestTelemetry[]>([]);
 const [channelSeriesLoading, setChannelSeriesLoading] = useState(false);
@@ -176,6 +175,7 @@ const [channelCustomDate, setChannelCustomDate] = useState(() => {
 });
 const [hourlyDate, setHourlyDate] = useState(() => new Date().toISOString().split("T")[0]);
 const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
+const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
   const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
   const [esp32Cached, setEsp32Cached] = useState(false);
   const [esp32Loading, setEsp32Loading] = useState(false);
@@ -491,7 +491,21 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
   async function loadHourlyData() {
     if (!token) return;
     try {
-      const data = await getHourlyEnergy(token, hourlyDate);
+      const now = new Date();
+      const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const isToday = hourlyDate === todayLocal;
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const elapsedMs = now.getTime() - midnight.getTime();
+      const elapsedHours = elapsedMs / (1000 * 60 * 60);
+
+      let bucketSec = 600;
+      if (isToday) {
+        if (elapsedHours < 1) bucketSec = 30;
+        else if (elapsedHours < 3) bucketSec = 60;
+        else if (elapsedHours < 6) bucketSec = 300;
+      }
+      setHourlyBucketSeconds(bucketSec);
+      const data = await getHourlyEnergy(token, hourlyDate, bucketSec);
       setHourlyData(data);
     } catch { /* ignore */ }
   }
@@ -1088,7 +1102,6 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                   </>
                 )}
                 <span className="text-slate-300">{channelSeriesData.length} registros{channelSeriesLoading ? " · cargando" : ""}</span>
-                <button className="rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Señal</button>
               </div>
             </div>
             {channelSeriesData.length === 0 ? (
@@ -1100,39 +1113,117 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
             ) : (
               <Chart option={channelSeriesOption} className="h-72 sm:h-72 lg:h-96" />
             )}
-            <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-1 flex items-center gap-3 text-xs text-slate-400">
-              {(() => {
-                const gapSegments: string[] = [];
-                if (showGaps && channelSeriesData.length > 1) {
-                  const firstT = new Date(channelSeriesData[0].recorded_at ?? "").getTime();
-                  const lastT = new Date(channelSeriesData[channelSeriesData.length - 1].recorded_at ?? "").getTime();
-                  const rangeMin = Math.max(1, Math.round((lastT - firstT) / 60000));
-                  if (rangeMin > 0) {
-                    for (let m = 0; m < rangeMin; m++) {
-                      const segStart = firstT + m * 60000;
-                      const segEnd = segStart + 60000;
-                      const hasData = channelSeriesData.some((d) => {
-                        const t = new Date(d.recorded_at ?? "").getTime();
-                        return t >= segStart && t < segEnd;
-                      });
-                      gapSegments.push(hasData ? "#22c55e" : "#dc2626");
-                    }
-                  }
-                }
-                return (
-                  <>
-                    {showGaps && gapSegments.length > 0 && (
-                      <div className="flex h-3 gap-px" style={{ width: Math.min(gapSegments.length * 6, 300) }}>
-                        {gapSegments.map((c, i) => <div key={i} className="h-full flex-1" style={{ background: c, minWidth: 1 }} />)}
-                      </div>
-                    )}
-                    {channelMode === "10min" || channelMode === "1hour" ? <span>· actualiza cada 5s</span> : null}
-                  </>
-                );
-              })()}
-            </div>
+            {channelMode === "10min" || channelMode === "1hour" ? (
+              <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-1 text-xs text-slate-400">· actualiza cada 5s</div>
+            ) : null}
           </Panel>
         </div>
+
+        <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
+          <Panel title="Consumo horario (acumulado del día)">
+            <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Día</span>
+                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={hourlyDate} onChange={(e) => setHourlyDate(e.target.value)} />
+              </label>
+              <span className="text-slate-300">{hourlyData.length} registros</span>
+            </div>
+            {(() => {
+              if (hourlyData.length === 0) {
+                return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos para esta fecha</div>;
+              }
+              const nowLocal = new Date();
+              const todayStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, "0")}-${String(nowLocal.getDate()).padStart(2, "0")}`;
+              const isToday = hourlyDate === todayStr;
+              const elapsedSec = nowLocal.getHours() * 3600 + nowLocal.getMinutes() * 60 + nowLocal.getSeconds();
+              const totalDaySlots = Math.ceil(86400 / hourlyBucketSeconds);
+              const maxSlots = isToday ? Math.ceil(elapsedSec / hourlyBucketSeconds) + 1 : totalDaySlots;
+              const timeSlots: string[] = [];
+              for (let i = 0; i < maxSlots; i++) {
+                const totalSec = i * hourlyBucketSeconds;
+                const h = Math.floor(totalSec / 3600);
+                const m = Math.floor((totalSec % 3600) / 60);
+                const s = totalSec % 60;
+                timeSlots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
+              }
+              const targetLabelSec = hourlyBucketSeconds < 60 ? 60 : hourlyBucketSeconds < 300 ? 300 : hourlyBucketSeconds < 600 ? 1800 : 3600;
+              const labelInterval = Math.max(0, Math.round(targetLabelSec / hourlyBucketSeconds) - 1);
+              let cumKwh = 0;
+              let cumCost = 0;
+              const slotMap = new Map<string, { kwh: number; cost: number }>();
+              for (const h of hourlyData) {
+                slotMap.set(h.time, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost) });
+              }
+              const cumKwhData = timeSlots.map((t) => {
+                const entry = slotMap.get(t);
+                if (entry) cumKwh += entry.kwh;
+                return cumKwh;
+              });
+              const cumCostData = timeSlots.map((t) => {
+                const entry = slotMap.get(t);
+                if (entry) cumCost += entry.cost;
+                return cumCost;
+              });
+              const totalKwh = cumKwh;
+              return (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+                    <p className="text-lg font-semibold text-ink">{totalKwh.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh total</span></p>
+                  </div>
+                  <Chart option={{
+                    grid: { left: 52, right: 12, top: 42, bottom: 36 },
+                    tooltip: {
+                      trigger: "axis",
+                      confine: true,
+                      formatter: (params: any) => {
+                        const p = params[0];
+                        const time = p.name;
+                        const idx = timeSlots.indexOf(time);
+                        const cumK = cumKwhData[idx];
+                        const cumC = cumCostData[idx];
+                        const entry = slotMap.get(time);
+                        const slotKwh = entry ? entry.kwh : 0;
+                        const slotCost = entry ? entry.cost : 0;
+                        const timeShort = hourlyBucketSeconds < 60 ? time.slice(0, 8) : time.slice(0, 5);
+                        return `<strong>${timeShort}</strong><br/>Intervalo: ${slotKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(slotCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
+                      },
+                    },
+                    xAxis: {
+                      type: "category",
+                      data: timeSlots,
+                      axisLabel: {
+                        color: "#526071",
+                        fontSize: lsz(11, rowFontScales.chart),
+                        interval: labelInterval,
+                        formatter: (v: string) => hourlyBucketSeconds >= 600 && v.endsWith(":00") ? v.slice(0, 2) : v.slice(0, 5),
+                      },
+                    },
+                    yAxis: {
+                      type: "value",
+                      min: 0,
+                      max: 15,
+                      name: "kWh",
+                      nameTextStyle: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
+                      splitLine: { lineStyle: { color: "#e4e8ef" } },
+                    },
+                    series: [
+                      {
+                        type: "line",
+                        smooth: true,
+                        symbol: "none",
+                        data: cumKwhData,
+                        lineStyle: { color: "#2563eb", width: 2.5 },
+                        areaStyle: { color: "#2563eb", opacity: 0.08 },
+                      },
+                    ],
+                  }} />
+                </div>
+              );
+            })()}
+          </Panel>
+        </div>
+
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Panel title="Consumo diario del mes">
             {(() => {
@@ -1414,103 +1505,6 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
                       </div>
                     );
                   })()}
-                </div>
-              );
-            })()}
-          </Panel>
-        </div>
-
-        <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
-          <Panel title="Consumo horario (acumulado del día)">
-            <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
-              <label className="flex items-center gap-1">
-                <span className="text-slate-400">Día</span>
-                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={hourlyDate} onChange={(e) => setHourlyDate(e.target.value)} />
-              </label>
-              <span className="text-slate-300">{hourlyData.length} horas con datos</span>
-            </div>
-            {(() => {
-              if (hourlyData.length === 0) {
-                return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos para esta fecha</div>;
-              }
-              const nowLocal = new Date();
-              const todayStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, "0")}-${String(nowLocal.getDate()).padStart(2, "0")}`;
-              const maxSlots = hourlyDate === todayStr ? nowLocal.getHours() * 6 + Math.floor(nowLocal.getMinutes() / 10) + 1 : 144;
-              const timeSlots: string[] = [];
-              for (let i = 0; i < maxSlots; i++) {
-                const h = Math.floor(i / 6);
-                const m = (i % 6) * 10;
-                timeSlots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-              }
-              let cumKwh = 0;
-              let cumCost = 0;
-              const slotMap = new Map<string, { kwh: number; cost: number }>();
-              for (const h of hourlyData) {
-                slotMap.set(h.time, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost) });
-              }
-              const cumKwhData = timeSlots.map((t) => {
-                const entry = slotMap.get(t);
-                if (entry) cumKwh += entry.kwh;
-                return cumKwh;
-              });
-              const cumCostData = timeSlots.map((t) => {
-                const entry = slotMap.get(t);
-                if (entry) cumCost += entry.cost;
-                return cumCost;
-              });
-              const totalKwh = cumKwh;
-              return (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-                    <p className="text-lg font-semibold text-ink">{totalKwh.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh total</span></p>
-                  </div>
-                  <Chart option={{
-                    grid: { left: 52, right: 12, top: 42, bottom: 36 },
-                    tooltip: {
-                      trigger: "axis",
-                      confine: true,
-                      formatter: (params: any) => {
-                        const p = params[0];
-                        const time = p.name;
-                        const idx = timeSlots.indexOf(time);
-                        const cumK = cumKwhData[idx];
-                        const cumC = cumCostData[idx];
-                        const entry = slotMap.get(time);
-                        const slotKwh = entry ? entry.kwh : 0;
-                        const slotCost = entry ? entry.cost : 0;
-                        return `<strong>${time}</strong><br/>Intervalo: ${slotKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(slotCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
-                      },
-                    },
-                    xAxis: {
-                      type: "category",
-                      data: timeSlots,
-                      axisLabel: {
-                        color: "#526071",
-                        fontSize: lsz(11, rowFontScales.chart),
-                        interval: 5,
-                        formatter: (v: string) => v.endsWith(":00") ? v.slice(0, 2) : "",
-                      },
-                    },
-                    yAxis: {
-                      type: "value",
-                      min: 0,
-                      max: 15,
-                      name: "kWh",
-                      nameTextStyle: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                      splitLine: { lineStyle: { color: "#e4e8ef" } },
-                    },
-                    series: [
-                      {
-                        type: "line",
-                        smooth: true,
-                        symbol: "none",
-                        data: cumKwhData,
-                        lineStyle: { color: "#2563eb", width: 2.5 },
-                        areaStyle: { color: "#2563eb", opacity: 0.08 },
-                      },
-                    ],
-                  }} />
                 </div>
               );
             })()}

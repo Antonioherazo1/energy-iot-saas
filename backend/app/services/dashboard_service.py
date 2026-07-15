@@ -784,6 +784,7 @@ def get_hourly_energy(
     user: User,
     date: str,
     organization_id: uuid.UUID | None = None,
+    bucket_seconds: int = 600,
 ) -> list[dict]:
     organization_ids = get_accessible_organization_ids(db, user, organization_id)
     if not organization_ids:
@@ -821,17 +822,22 @@ def get_hourly_energy(
     buckets: dict[str, list[Decimal]] = {}
     for row in rows:
         col_time = row.recorded_at - timedelta(hours=5)
-        minute_key = f"{col_time.hour:02d}:{col_time.minute // 10 * 10:02d}"
-        if minute_key not in buckets:
-            buckets[minute_key] = []
-        buckets[minute_key].append(row.energy_kwh)
+        total_sec = col_time.hour * 3600 + col_time.minute * 60 + col_time.second
+        bucket_start = total_sec // bucket_seconds * bucket_seconds
+        h = bucket_start // 3600
+        m = (bucket_start % 3600) // 60
+        s = bucket_start % 60
+        key = f"{h:02d}:{m:02d}:{s:02d}"
+        if key not in buckets:
+            buckets[key] = []
+        buckets[key].append(row.energy_kwh)
 
     result = []
-    for minute_key in sorted(buckets.keys()):
-        values = buckets[minute_key]
+    for key in sorted(buckets.keys()):
+        values = buckets[key]
         kwh = max(values) - min(values)
         result.append({
-            "time": minute_key,
+            "time": key,
             "energy_kwh": kwh or Decimal("0"),
             "cost": kwh * kwh_rate,
         })
