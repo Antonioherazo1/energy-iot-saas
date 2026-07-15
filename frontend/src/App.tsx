@@ -140,6 +140,7 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
     const saved = localStorage.getItem("billing_start_day");
     return saved ? Number(saved) : 1;
   });
+  const [periodOffset, setPeriodOffset] = useState(0);
   const [billingDaily, setBillingDaily] = useState<EnergyBucket[]>([]);
   const [billingMonthly, setBillingMonthly] = useState<EnergyBucket[]>([]);
   const [channelDailyEnergy, setChannelDailyEnergy] = useState<{ channel_number: number; energy_kwh: string }[]>([]);
@@ -1227,47 +1228,59 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
         </div>
 
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Panel title="Proyección diaria del mes">
+          <Panel title="Proyección por período">
             {(() => {
               const now = new Date();
-              const year = now.getFullYear();
-              const month = String(now.getMonth() + 1).padStart(2, "0");
-              const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
-              const todayDate = now.getDate();
-              const todayStr = `${year}-${month}-${String(todayDate).padStart(2, "0")}`;
+              const base = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
+              if (base > now) base.setMonth(base.getMonth() - 1);
+              const periodStart = new Date(base.getFullYear(), base.getMonth() + periodOffset, billingStartDay);
+              const periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, billingStartDay);
+              const monthNames = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+              const periodLabel = `${periodStart.getDate()} ${monthNames[periodStart.getMonth()]} – ${periodEnd.getDate()} ${monthNames[periodEnd.getMonth()]}`;
 
-              const completeDays = daily.filter((item) => {
+              const periodDays = daily.filter((item) => {
                 const d = new Date(item.period + "T00:00:00");
-                return d < new Date(year, now.getMonth(), todayDate) &&
+                return d >= periodStart && d < periodEnd;
+              });
+              const completeInPeriod = periodDays.filter((item) => {
+                const d = new Date(item.period + "T00:00:00");
+                return d < new Date(now.getFullYear(), now.getMonth(), now.getDate()) &&
                        (item.record_count ?? 0) >= completenessMinRecords &&
                        (item.record_count ?? 0) <= completenessMaxRecords;
               });
-              const completeTotal = completeDays.reduce((s, item) => s + numeric(item.energy_kwh), 0);
-              const completeCount = completeDays.length;
+              const completeTotal = completeInPeriod.reduce((s, item) => s + numeric(item.energy_kwh), 0);
+              const completeCount = completeInPeriod.length;
               const avgDaily = completeCount > 0 ? completeTotal / completeCount : 0;
 
-              const days = Array.from({ length: daysInMonth }, (_, i) => {
-                const day = i + 1;
-                const period = `${year}-${month}-${String(day).padStart(2, "0")}`;
-                const found = daily.find((d) => d.period === period);
+              const days: { label: string; kwh: number; projected: boolean; isToday: boolean; actual: number; recordCount: number }[] = [];
+              const cursor = new Date(periodStart);
+              const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+              while (cursor < periodEnd && cursor <= todayDate) {
+                const period = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+                const found = periodDays.find((d) => d.period === period);
                 const actual = found ? numeric(found.energy_kwh) : 0;
                 const rc = found ? (found.record_count ?? 0) : 0;
-                const isToday = day === todayDate;
-                const isFuture = day > todayDate;
-                const isComplete = rc >= completenessMinRecords && rc <= completenessMaxRecords;
-                const useAvg = (isFuture || (!isToday && !isComplete)) && avgDaily > 0;
+                const isToday = period === todayStr;
+                const isComplete = (rc >= completenessMinRecords && rc <= completenessMaxRecords) || isToday;
+                const useAvg = !isComplete && !isToday && avgDaily > 0;
                 const val = isToday ? actual : (useAvg ? avgDaily : actual);
-                return { label: String(day), kwh: val, projected: useAvg, isToday, actual, recordCount: rc };
-              });
-
+                days.push({ label: String(cursor.getDate()), kwh: val, projected: useAvg, isToday, actual, recordCount: rc });
+                cursor.setDate(cursor.getDate() + 1);
+              }
               const hasProjected = days.some((d) => d.projected);
-              const monthTotal = days.reduce((s, d) => s + d.kwh, 0);
+              const periodTotal = days.reduce((s, d) => s + d.kwh, 0);
               return (
                 <div className="space-y-2 text-sm">
                   <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                    <p className="text-lg font-semibold text-ink">{monthTotal.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh proy. mensual</span></p>
-                    <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO").format(Math.round(monthTotal * kwhRate))} <span className="text-sm font-normal text-slate-500">proy.</span></p>
-                    <p className="text-xs text-slate-400 ml-auto">Promedio: {avgDaily.toFixed(2)} kWh/dia</p>
+                    <div className="flex items-center gap-2">
+                      <button className="h-7 w-7 rounded border border-line bg-white text-xs hover:bg-slate-50 disabled:opacity-30" disabled={periodOffset <= -12} onClick={() => setPeriodOffset(periodOffset - 1)} type="button">&lt;</button>
+                      <span className="text-sm font-semibold text-ink">{periodLabel}</span>
+                      <button className="h-7 w-7 rounded border border-line bg-white text-xs hover:bg-slate-50 disabled:opacity-30" disabled={periodOffset >= 0} onClick={() => setPeriodOffset(periodOffset + 1)} type="button">&gt;</button>
+                    </div>
+                    <p className="text-lg font-semibold text-ink">{periodTotal.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh</span></p>
+                    <p className="text-lg font-medium text-accent">$ {Intl.NumberFormat("es-CO").format(Math.round(periodTotal * kwhRate))}</p>
+                    {avgDaily > 0 && <p className="text-xs text-slate-400">Promedio: {avgDaily.toFixed(2)} kWh/dia</p>}
                     <button
                       className="h-7 rounded border border-line bg-white px-2 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-40"
                       disabled={recalculating}
@@ -1286,40 +1299,45 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
                       type="button"
                     >{recalculating ? "..." : "Recalcular"}</button>
                   </div>
-                  {hasProjected && (
-                    <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-2">
-                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#2563eb" }} /> Completo</span>
-                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#2563eb", opacity: 0.35 }} /> Proyectado</span>
-                      <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#16a34a", background: "transparent" }} /> Hoy</span>
-                    </div>
+                  {days.length === 0 ? (
+                    <div className="flex items-center justify-center py-8 text-xs text-slate-500">Sin datos para este período</div>
+                  ) : (
+                    <>
+                      {hasProjected && (
+                        <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-2">
+                          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#2563eb" }} /> Completo</span>
+                          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#2563eb", opacity: 0.35 }} /> Proyectado</span>
+                          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#16a34a", background: "transparent" }} /> Hoy</span>
+                        </div>
+                      )}
+                      <Chart option={{
+                        grid: { left: 42, right: 12, top: 12, bottom: 32 },
+                        xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.floor(days.length / 15) - 1) } },
+                        yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
+                        series: [{
+                          type: "bar",
+                          barMinHeight: 4,
+                          data: days.map((d) => {
+                            if (d.isToday) return { value: d.kwh, itemStyle: { color: "#16a34a", borderColor: "#16a34a", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#16a34a" } } };
+                            if (d.projected) return { value: d.kwh, itemStyle: { color: "#2563eb", opacity: 0.35 }, emphasis: { itemStyle: { color: "#2563eb", opacity: 0.55 } } };
+                            return { value: d.kwh, itemStyle: { color: "#2563eb" }, emphasis: { itemStyle: { color: "#2563eb" } } };
+                          }),
+                        }],
+                        tooltip: {
+                          trigger: "axis",
+                          formatter: (params: any) => {
+                            const p = params[0];
+                            const d = days[Number(p.dataIndex)];
+                            const cost = Math.round(p.value * kwhRate);
+                            let extra = "";
+                            if (d.isToday) extra = '<br/><span style="color:#16a34a;font-size:11px;">\u2022 Hoy</span>';
+                            else if (d.projected) extra = `<br/><span style="color:#2563eb;font-size:11px;">\u2022 Promedio asignado (umbral: <strong>${completenessMinRecords.toLocaleString("es-CO")}</strong> registros)</span>`;
+                            return `<strong>Dia ${d.label}</strong><br/>${p.value.toFixed(2)} kWh<br/>\$ ${Intl.NumberFormat("es-CO").format(cost)}<br/>${d.recordCount.toLocaleString("es-CO")} registros${extra}`;
+                          },
+                        },
+                      }} />
+                    </>
                   )}
-                  <Chart option={{
-                    grid: { left: 42, right: 12, top: 12, bottom: 32 },
-                    xAxis: { type: "category", data: days.map((d) => d.label), axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071", interval: Math.max(0, Math.floor(days.length / 15) - 1) } },
-                    yAxis: { type: "value", axisLabel: { fontSize: lsz(11, rowFontScales.chart), color: "#526071" }, splitLine: { lineStyle: { color: "#e4e8ef" } } },
-                    series: [{
-                      type: "bar",
-                      barMinHeight: 4,
-                      data: days.map((d) => {
-                        if (d.isToday) return { value: d.kwh, itemStyle: { color: "#16a34a", borderColor: "#16a34a", borderType: "dashed", borderWidth: 2 }, emphasis: { itemStyle: { color: "#16a34a" } } };
-                        if (d.projected) return { value: d.kwh, itemStyle: { color: "#2563eb", opacity: 0.35 }, emphasis: { itemStyle: { color: "#2563eb", opacity: 0.55 } } };
-                        return { value: d.kwh, itemStyle: { color: "#2563eb" }, emphasis: { itemStyle: { color: "#2563eb" } } };
-                      }),
-                    }],
-                    tooltip: {
-                      trigger: "axis",
-                      formatter: (params: any) => {
-                        const p = params[0];
-                        const d = days[Number(p.dataIndex)];
-                        const monthNames = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-                        const cost = Math.round(p.value * kwhRate);
-                        let extra = "";
-                        if (d.isToday) extra = '<br/><span style="color:#16a34a;font-size:11px;">\u2022 Hoy</span>';
-                        else if (d.projected) extra = `<br/><span style="color:#2563eb;font-size:11px;">\u2022 Promedio asignado (umbral: <strong>${completenessMinRecords.toLocaleString("es-CO")}</strong> registros)</span>`;
-                        return `<strong>${d.label} ${monthNames[now.getMonth()]}</strong><br/>${p.value.toFixed(2)} kWh<br/>\$ ${Intl.NumberFormat("es-CO").format(cost)}<br/>${d.recordCount.toLocaleString("es-CO")} registros${extra}`;
-                      },
-                    },
-                  }} />
                 </div>
               );
             })()}
