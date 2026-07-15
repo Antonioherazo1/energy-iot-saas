@@ -820,29 +820,33 @@ def get_hourly_energy(
         .order_by(Telemetry.device_id, Telemetry.recorded_at)
     )
 
-    buckets: dict[str, dict[uuid.UUID, list[Decimal]]] = {}
-    for row in rows:
-        col_time = row.recorded_at - timedelta(hours=5)
+    def bucket_time_key(col_time: datetime) -> str:
         total_sec = col_time.hour * 3600 + col_time.minute * 60 + col_time.second
         bucket_start = total_sec // bucket_seconds * bucket_seconds
         h = bucket_start // 3600
         m = (bucket_start % 3600) // 60
         s = bucket_start % 60
-        key = f"{h:02d}:{m:02d}:{s:02d}"
-        if key not in buckets:
-            buckets[key] = {}
-        if row.device_id not in buckets[key]:
-            buckets[key][row.device_id] = []
-        buckets[key][row.device_id].append(row.energy_kwh)
+        return f"{h:02d}:{m:02d}:{s:02d}"
+
+    buckets: dict[str, Decimal] = {}
+    prev_by_device: dict[uuid.UUID, Decimal] = {}
+
+    for row in rows:
+        prev_val = prev_by_device.get(row.device_id)
+        if prev_val is not None:
+            diff = row.energy_kwh - prev_val
+            if diff > 0:
+                col_time = row.recorded_at - timedelta(hours=5)
+                key = bucket_time_key(col_time)
+                buckets[key] = buckets.get(key, Decimal("0")) + diff
+        prev_by_device[row.device_id] = row.energy_kwh
 
     result = []
     for key in sorted(buckets.keys()):
-        total_kwh = Decimal("0")
-        for device_id, values in buckets[key].items():
-            total_kwh += max(values) - min(values)
+        kwh = buckets[key]
         result.append({
             "time": key,
-            "energy_kwh": total_kwh or Decimal("0"),
-            "cost": total_kwh * kwh_rate,
+            "energy_kwh": kwh or Decimal("0"),
+            "cost": kwh * kwh_rate,
         })
     return result
