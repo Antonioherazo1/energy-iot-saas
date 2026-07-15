@@ -242,6 +242,13 @@ export function getChannelDaySeries(token: string, deviceId: string, date: strin
   );
 }
 
+export function getChannelSeries(token: string, deviceId: string, since: string, until: string): Promise<LatestTelemetry[]> {
+  return request<LatestTelemetry[]>(
+    `/dashboard/channels/series?device_id=${deviceId}&since=${encodeURIComponent(since)}&until=${encodeURIComponent(until)}`,
+    { token }
+  );
+}
+
 export function updateChannel(token: string, deviceId: string, channelNumber: number, data: { name?: string; voltage?: number; is_active?: boolean }): Promise<DeviceChannel> {
   return request<DeviceChannel>(`/devices/${deviceId}/channels/${channelNumber}`, {
     method: "PUT",

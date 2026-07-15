@@ -122,6 +122,26 @@ def channels_realtime(
     return get_realtime_currents(db=db, user=current_user, device_id=device_id, minutes=minutes)
 
 
+@router.get("/channels/series")
+def channels_series(
+    device_id: uuid.UUID,
+    since: str = Query(description="ISO datetime UTC"),
+    until: str = Query(description="ISO datetime UTC"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    from app.services.dashboard_service import get_channel_series
+    def _parse(s: str) -> datetime:
+        s = s.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is not None:
+            dt = dt.replace(tzinfo=None)
+        return dt
+    dt_since = _parse(since)
+    dt_until = _parse(until)
+    return get_channel_series(db=db, user=current_user, device_id=device_id, since=dt_since, until=dt_until)
+
+
 @router.get("/energy/monthly", response_model=list[EnergyBucketRead])
 def energy_monthly(
     organization_id: uuid.UUID | None = None,

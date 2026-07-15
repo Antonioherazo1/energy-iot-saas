@@ -43,6 +43,7 @@ import {
   listFirmware,
   triggerOta,
   triggerOtaAll,
+  getChannelSeries,
 } from "./lib/api";
 import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, HourlyEnergy, LatestTelemetry, Organization, User } from "./types";
 
@@ -166,6 +167,13 @@ const [organizations, setOrganizations] = useState<Organization[]>([]);
   const realtimeReloadRef = useRef<number | null>(null);
   const [dbSize, setDbSize] = useState<number | null>(null);
   const [showGaps, setShowGaps] = useState(true);
+const [channelMode, setChannelMode] = useState<"10min" | "1hour" | "today" | "custom">("10min");
+const [channelSeriesData, setChannelSeriesData] = useState<LatestTelemetry[]>([]);
+const [channelSeriesLoading, setChannelSeriesLoading] = useState(false);
+const [channelCustomDate, setChannelCustomDate] = useState(() => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+});
 const [hourlyDate, setHourlyDate] = useState(() => new Date().toISOString().split("T")[0]);
 const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
   const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
@@ -396,6 +404,36 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
     }
   }, [selectedDeviceId, dayDate]);
 
+  async function loadChannelSeries() {
+    if (!token || !selectedDeviceId) return;
+    setChannelSeriesLoading(true);
+    try {
+      const now = new Date();
+      let since: Date;
+      let until: Date;
+      if (channelMode === "10min") {
+        since = new Date(now.getTime() - 10 * 60 * 1000);
+        until = now;
+      } else if (channelMode === "1hour") {
+        since = new Date(now.getTime() - 60 * 60 * 1000);
+        until = now;
+      } else if (channelMode === "today") {
+        since = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        until = now;
+      } else {
+        const parts = channelCustomDate.split("-");
+        since = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), channelHourFrom);
+        until = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), channelHourTo);
+      }
+      const data = await getChannelSeries(token, selectedDeviceId, since.toISOString(), until.toISOString());
+      setChannelSeriesData(data);
+    } catch {
+      // ignore
+    } finally {
+      setChannelSeriesLoading(false);
+    }
+  }
+
   async function loadRealtimeBuffer() {
     if (!token || !selectedDeviceId) return;
     if (currentBuffer.length === 0) setBufferLoading(true);
@@ -419,6 +457,18 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
       // ignore
     }
   }
+
+  useEffect(() => {
+    if (!selectedDeviceId || !token) return;
+    setChannelSeriesData([]);
+    const timer = setTimeout(() => void loadChannelSeries(), 50);
+    const isRealtime = channelMode === "10min" || channelMode === "1hour";
+    let interval: number | undefined;
+    if (isRealtime) {
+      interval = window.setInterval(() => void loadChannelSeries(), 5000);
+    }
+    return () => { clearTimeout(timer); if (interval) window.clearInterval(interval); };
+  }, [token, selectedDeviceId, channelMode, channelCustomDate, channelHourFrom, channelHourTo]);
 
   useEffect(() => {
     if (!selectedDeviceId) return;
@@ -540,33 +590,31 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
     void loadChannelDailyEnergy();
   }, [token, selectedDeviceId]);
 
-  const channelsOption = useMemo<EChartsOption>(() => {
+  const channelSeriesOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
-    const sourceData = daySeries.length > 0 ? daySeries : channelData;
-
+    const sourceData = channelSeriesData;
     const step = Math.max(1, Math.floor(sourceData.length / 500));
     const sampled = sourceData.filter((_, i) => i % step === 0 || i === sourceData.length - 1);
 
-    const filtered = sampled.filter((d) => {
-      if (!d.recorded_at) return true;
-      const h = new Date(d.recorded_at).getHours();
-      return h >= channelHourFrom && h < channelHourTo;
-    });
-
-    const times = filtered.map((d) => {
+    const isShort = channelMode === "10min" || channelMode === "1hour";
+    const times = sampled.map((d) => {
       const t = new Date(d.recorded_at ?? "");
-      return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
+      const hh = String(t.getHours()).padStart(2, "0");
+      const mm = String(t.getMinutes()).padStart(2, "0");
+      if (isShort) {
+        return `${hh}:${mm}:${String(t.getSeconds()).padStart(2, "0")}`;
+      }
+      return `${hh}:${mm}`;
     });
 
-    const activeChannels = deviceChannels.filter((ch) => ch.is_active);
-
-    const series = activeChannels
+    const series = deviceChannels
+      .filter((ch) => ch.is_active)
       .map((ch, idx) => ({
         type: "line" as const,
         smooth: true,
         symbol: "none",
         name: ch.name,
-        data: filtered.map((d) => numeric(d[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null)),
+        data: sampled.map((d) => numeric(d[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null)),
         lineStyle: { color: colors[idx % colors.length], width: 2 },
       }));
 
@@ -582,7 +630,7 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
           fontSize: lsz(11, rowFontScales.chart),
           rotate: 90,
           showMaxLabel: true,
-          interval: Math.max(1, Math.floor(times.length / 24)),
+          interval: Math.max(1, Math.floor(times.length / (isShort ? 10 : 24))),
         },
       },
       yAxis: {
@@ -594,52 +642,7 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
       },
       series,
     };
-  }, [channelData, daySeries, deviceChannels, channelHourFrom, channelHourTo, rowFontScales]);
-
-  const realtimeCurrentOption = useMemo<EChartsOption>(() => {
-    const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
-    const times = currentBuffer.map((d) => {
-      const t = new Date(d.recorded_at ?? "");
-      return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:${String(t.getSeconds()).padStart(2, "0")}`;
-    });
-    const series = deviceChannels
-      .filter((ch) => ch.is_active)
-      .map((ch) => {
-        const key = `ch${ch.channel_number}` as keyof LatestTelemetry;
-        return {
-          type: "line" as const,
-          smooth: true,
-          symbol: "none",
-          name: ch.name,
-          data: currentBuffer.map((d) => numeric(d[key] as string | null)),
-          lineStyle: { color: colors[(ch.channel_number - 1) % colors.length], width: 2 },
-        };
-      });
-    return {
-      grid: { left: lsz(56, rowFontScales.chart), right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: lsz(96, rowFontScales.chart) },
-      tooltip: { trigger: "axis" },
-      legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
-      xAxis: {
-        type: "category",
-        data: times,
-        axisLabel: {
-          color: "#526071",
-          fontSize: lsz(11, rowFontScales.chart),
-          rotate: 90,
-          showMaxLabel: true,
-          interval: Math.max(1, Math.floor(times.length / 24)),
-        },
-      },
-      yAxis: {
-        type: "value",
-        name: "Amperios",
-        nameTextStyle: { fontSize: lsz(12, rowFontScales.chart) },
-        axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-        splitLine: { lineStyle: { color: "#e4e8ef" } },
-      },
-      series,
-    };
-  }, [currentBuffer, deviceChannels, rowFontScales]);
+  }, [channelSeriesData, deviceChannels, channelMode, rowFontScales]);
 
   if (!token || !user || (onboardingStep === 0 && user === null)) {
     const signingUp = authMode === "signup";
@@ -1050,83 +1053,81 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
           </>
         ) : null}
         <div className="mt-4 overflow-x-auto">
-            <Panel title="Corriente por canal (A) - Tiempo real">
-              <div style={{ zoom: rowFontScales.row3 / 100 }}>
-                {currentBuffer.length === 0 ? (
-                bufferLoading ? (
-                  <div className="flex items-center justify-center py-8 text-sm text-slate-500">Cargando...</div>
-                ) : (
-                  <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos en los últimos {realtimeMinutes} minutos</div>
-                )
-              ) : null}
-              </div>
-              {currentBuffer.length > 0 && <Chart option={realtimeCurrentOption} className="h-72 sm:h-72 lg:h-96" />}
-              <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-1 flex items-center justify-between text-xs text-slate-400">
+          <Panel title="Corriente por canal (A)">
+            <div style={{ zoom: rowFontScales.row3 / 100 }}>
+              <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
                 <div className="flex gap-1">
-                  {[10, 30, 60].map((m) => (
+                  {(["10min", "1hour", "today", "custom"] as const).map((mode) => (
                     <button
-                      key={m}
-                      className={`rounded px-2 py-0.5 ${realtimeMinutes === m ? "bg-brand text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
-                      onClick={() => setRealtimeMinutes(m)}
+                      key={mode}
+                      className={`rounded px-2 py-0.5 ${channelMode === mode ? "bg-brand text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                      onClick={() => setChannelMode(mode)}
                       type="button"
                     >
-                      {m} min
+                      {mode === "10min" ? "10 min" : mode === "1hour" ? "1 hora" : mode === "today" ? "Hoy" : "Personalizado"}
                     </button>
                   ))}
                 </div>
-                {(() => {
-                  const gapSegments: string[] = [];
-                  if (showGaps && currentBuffer.length > 1) {
-                    const firstT = new Date(currentBuffer[0].recorded_at ?? "").getTime();
-                    const lastT = new Date(currentBuffer[currentBuffer.length - 1].recorded_at ?? "").getTime();
-                    const rangeMin = Math.max(1, Math.round((lastT - firstT) / 60000));
-                    if (rangeMin > 0) {
-                      for (let m = 0; m < rangeMin; m++) {
-                        const segStart = firstT + m * 60000;
-                        const segEnd = segStart + 60000;
-                        const hasData = currentBuffer.some((d) => {
-                          const t = new Date(d.recorded_at ?? "").getTime();
-                          return t >= segStart && t < segEnd;
-                        });
-                        gapSegments.push(hasData ? "#22c55e" : "#dc2626");
-                      }
+                {channelMode === "custom" && (
+                  <>
+                    <label className="flex items-center gap-1">
+                      <span className="text-slate-400">Fecha</span>
+                      <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={channelCustomDate} onChange={(e) => setChannelCustomDate(e.target.value)} />
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <span className="text-slate-400">Desde</span>
+                      <input className="h-8 w-16 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="number" min={0} max={23} value={channelHourFrom} onChange={(e) => setChannelHourFrom(Number(e.target.value))} onFocus={(e) => e.target.select()} />
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <span className="text-slate-400">Hasta</span>
+                      <input className="h-8 w-16 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="number" min={1} max={24} value={channelHourTo} onChange={(e) => setChannelHourTo(Number(e.target.value))} onFocus={(e) => e.target.select()} />
+                    </label>
+                  </>
+                )}
+                <span className="text-slate-300">{channelSeriesData.length} registros{channelSeriesLoading ? " · cargando" : ""}</span>
+                <button className="rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Señal</button>
+              </div>
+            </div>
+            {channelSeriesData.length === 0 ? (
+              channelSeriesLoading ? (
+                <div className="flex items-center justify-center py-8 text-sm text-slate-500">Cargando...</div>
+              ) : (
+                <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos</div>
+              )
+            ) : (
+              <Chart option={channelSeriesOption} className="h-72 sm:h-72 lg:h-96" />
+            )}
+            <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-1 flex items-center gap-3 text-xs text-slate-400">
+              {(() => {
+                const gapSegments: string[] = [];
+                if (showGaps && channelSeriesData.length > 1) {
+                  const firstT = new Date(channelSeriesData[0].recorded_at ?? "").getTime();
+                  const lastT = new Date(channelSeriesData[channelSeriesData.length - 1].recorded_at ?? "").getTime();
+                  const rangeMin = Math.max(1, Math.round((lastT - firstT) / 60000));
+                  if (rangeMin > 0) {
+                    for (let m = 0; m < rangeMin; m++) {
+                      const segStart = firstT + m * 60000;
+                      const segEnd = segStart + 60000;
+                      const hasData = channelSeriesData.some((d) => {
+                        const t = new Date(d.recorded_at ?? "").getTime();
+                        return t >= segStart && t < segEnd;
+                      });
+                      gapSegments.push(hasData ? "#22c55e" : "#dc2626");
                     }
                   }
-                  return (
-                    <div className="flex items-center gap-3">
-                      <button className="rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Señal</button>
-                      {showGaps && gapSegments.length > 0 && (
-                        <div className="flex h-3 gap-px" style={{ width: Math.min(gapSegments.length * 6, 300) }}>
-                          {gapSegments.map((c, i) => <div key={i} className="h-full flex-1" style={{ background: c, minWidth: 1 }} />)}
-                        </div>
-                      )}
-                      <span>{currentBuffer.length} registros · actualiza cada 5s</span>
-                    </div>
-                  );
-                })()}
-              </div>
-          </Panel>
-        </div>
-
-        <div className="mt-6 overflow-x-auto">
-          <Panel title="Corriente por canal (A) - Histórico">
-            <div style={{ zoom: rowFontScales.row4 / 100 }} className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
-              <label className="flex items-center gap-1">
-                <span className="text-slate-400">Fecha</span>
-                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} />
-              </label>
-              <label className="flex items-center gap-1">
-                <span className="text-slate-400">Desde</span>
-                <input className="h-8 w-16 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="number" min={0} max={23} value={channelHourFrom} onChange={(e) => setChannelHourFrom(Number(e.target.value))} onFocus={(e) => e.target.select()} />
-              </label>
-              <label className="flex items-center gap-1">
-                <span className="text-slate-400">Hasta</span>
-                <input className="h-8 w-16 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="number" min={1} max={24} value={channelHourTo} onChange={(e) => setChannelHourTo(Number(e.target.value))} onFocus={(e) => e.target.select()} />
-              </label>
-              <span className="text-slate-300">{daySeries.length} registros{dayLoading ? " · cargando" : ""}</span>
-              <button className="rounded px-2 py-0.5 text-xs" style={{ background: showGaps ? "#dc2626" : "#e4e8ef", color: showGaps ? "#fff" : "#64748b" }} onClick={() => setShowGaps((v) => !v)} type="button">Gap</button>
+                }
+                return (
+                  <>
+                    {showGaps && gapSegments.length > 0 && (
+                      <div className="flex h-3 gap-px" style={{ width: Math.min(gapSegments.length * 6, 300) }}>
+                        {gapSegments.map((c, i) => <div key={i} className="h-full flex-1" style={{ background: c, minWidth: 1 }} />)}
+                      </div>
+                    )}
+                    {channelMode === "10min" || channelMode === "1hour" ? <span>· actualiza cada 5s</span> : null}
+                  </>
+                );
+              })()}
             </div>
-            <Chart option={channelsOption} className="h-72 sm:h-72 lg:h-96" />
           </Panel>
         </div>
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">

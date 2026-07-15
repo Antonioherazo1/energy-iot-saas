@@ -504,6 +504,81 @@ def get_realtime_currents(
     return [dict(row._mapping) for row in rows]
 
 
+def get_channel_series(
+    db: Session,
+    user: User,
+    device_id: uuid.UUID,
+    since: datetime,
+    until: datetime,
+) -> list[dict]:
+    org_ids = get_accessible_organization_ids(db, user)
+    device = db.get(Device, device_id)
+    if device is None or device.organization_id not in org_ids:
+        return []
+
+    channels_map = {
+        ch.channel_number: ch
+        for ch in db.scalars(
+            select(DeviceChannel).where(
+                DeviceChannel.device_id == device.id,
+                DeviceChannel.is_active.is_(True),
+            )
+        )
+    }
+
+    from sqlalchemy import union_all
+
+    raw = select(
+        RawTelemetry.recorded_at.label("recorded_at"),
+        RawTelemetry.ch1,
+        RawTelemetry.ch2,
+        RawTelemetry.ch3,
+        RawTelemetry.ch4,
+        RawTelemetry.ch1_energy_kwh,
+        RawTelemetry.ch2_energy_kwh,
+        RawTelemetry.ch3_energy_kwh,
+        RawTelemetry.ch4_energy_kwh,
+    ).where(
+        RawTelemetry.device_id == device.id,
+        RawTelemetry.recorded_at >= since,
+        RawTelemetry.recorded_at <= until,
+        RawTelemetry.ch1.is_not(None),
+    )
+
+    agg = select(
+        Telemetry.recorded_at.label("recorded_at"),
+        Telemetry.ch1,
+        Telemetry.ch2,
+        Telemetry.ch3,
+        Telemetry.ch4,
+        Telemetry.ch1_energy_kwh,
+        Telemetry.ch2_energy_kwh,
+        Telemetry.ch3_energy_kwh,
+        Telemetry.ch4_energy_kwh,
+    ).where(
+        Telemetry.device_id == device.id,
+        Telemetry.recorded_at >= since,
+        Telemetry.recorded_at <= until,
+        Telemetry.ch1.is_not(None),
+    )
+
+    union_q = union_all(raw, agg).cte()
+    rows = db.execute(
+        select(union_q).order_by(union_q.c.recorded_at)
+    )
+
+    result = []
+    for row in rows:
+        entry = dict(row._mapping)
+        for ch_num in range(1, 5):
+            ch_current = entry.get(f"ch{ch_num}")
+            ch_config = channels_map.get(ch_num)
+            ch_voltage = ch_config.voltage if ch_config else Decimal("110")
+            entry[f"ch{ch_num}_power"] = ch_current * ch_voltage if ch_current else None
+        result.append(entry)
+    return result
+
+
 def get_channel_day_series(
     db: Session,
     user: User,
