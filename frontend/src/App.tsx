@@ -1429,9 +1429,9 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
               if (hourlyData.length === 0) {
                 return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos para esta fecha</div>;
               }
-              const todayStr = new Date().toISOString().split("T")[0];
-              const now = new Date();
-              const maxSlots = hourlyDate === todayStr ? now.getHours() * 6 + Math.floor(now.getMinutes() / 10) + 1 : 144;
+              const nowLocal = new Date();
+              const todayStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, "0")}-${String(nowLocal.getDate()).padStart(2, "0")}`;
+              const maxSlots = hourlyDate === todayStr ? nowLocal.getHours() * 6 + Math.floor(nowLocal.getMinutes() / 10) + 1 : 144;
               const timeSlots: string[] = [];
               for (let i = 0; i < maxSlots; i++) {
                 const h = Math.floor(i / 6);
