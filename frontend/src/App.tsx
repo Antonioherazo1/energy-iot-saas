@@ -642,7 +642,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
 
     return {
       grid: { left: lsz(56, rowFontScales.chart), right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: lsz(96, rowFontScales.chart) },
-      tooltip: { trigger: "axis" },
+      tooltip: { trigger: "axis", triggerOn: "click" },
       legend: { top: 4, left: "center", textStyle: { color: "#526071", fontSize: lsz(12, rowFontScales.chart) }, icon: "circle" },
       xAxis: {
         type: "category",
@@ -1178,6 +1178,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
                     grid: { left: 52, right: 12, top: 42, bottom: 36 },
                     tooltip: {
                       trigger: "axis",
+                      triggerOn: "click",
                       confine: true,
                       formatter: (params: any) => {
                         const p = params[0];
@@ -1325,6 +1326,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
                         }],
                         tooltip: {
                           trigger: "axis",
+                          triggerOn: "click",
                           formatter: (params: any) => {
                             const p = params[0];
                             const d = days[Number(p.dataIndex)];
@@ -1401,6 +1403,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
                     ],
                     tooltip: {
                       trigger: "axis",
+                      triggerOn: "click",
                       formatter: (params: any) => {
                         const p = params[0];
                         const cost = Math.round(p.value * kwhRate);
