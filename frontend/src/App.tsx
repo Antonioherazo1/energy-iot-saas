@@ -425,10 +425,13 @@ const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
         since = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), channelHourFrom);
         until = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), channelHourTo);
       }
+      const url = `/dashboard/channels/series?device_id=${selectedDeviceId}&since=${encodeURIComponent(since.toISOString())}&until=${encodeURIComponent(until.toISOString())}`;
+      console.log("Fetching channel series:", url);
       const data = await getChannelSeries(token, selectedDeviceId, since.toISOString(), until.toISOString());
+      console.log("Channel series data count:", data.length);
       setChannelSeriesData(data);
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error("Channel series error:", e);
     } finally {
       setChannelSeriesLoading(false);
     }
