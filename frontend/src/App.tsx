@@ -1229,7 +1229,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
         </div>
 
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Panel title="Proyección por período">
+          <Panel title="Comparativo diario">
             {(() => {
               const now = new Date();
               const base = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
