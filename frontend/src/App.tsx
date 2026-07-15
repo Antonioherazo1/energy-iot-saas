@@ -514,7 +514,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
   }
 
   useEffect(() => {
-    if (!token || !user || onboardingStep <= 3) return;
+    if (!token || !user || onboardingStep >= 1 && onboardingStep <= 3) return;
     void loadHourlyData();
   }, [token, user, onboardingStep, hourlyDate, selectedDeviceId]);
 
@@ -539,17 +539,18 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
   }, []);
 
   useEffect(() => {
-    if (!token || !user || onboardingStep > 0) {
+    if (!token || !user || onboardingStep >= 1 && onboardingStep <= 3) {
       return;
     }
     const interval = window.setInterval(() => {
       void loadDashboard(token);
+      void loadHourlyData();
     }, 10000);
     return () => window.clearInterval(interval);
   }, [token, user, onboardingStep]);
 
   useEffect(() => {
-    if (!token || !user || onboardingStep > 0) {
+    if (!token || !user || onboardingStep >= 1 && onboardingStep <= 3) {
       return;
     }
 

@@ -823,12 +823,13 @@ def get_hourly_energy(
             kwh_rate = Decimal(setting.value)
 
     rows = db.execute(
-        select(Telemetry.device_id, Telemetry.recorded_at, Telemetry.energy_kwh)
+        select(Telemetry.device_id, Telemetry.recorded_at,
+               Telemetry.ch1_energy_kwh, Telemetry.ch2_energy_kwh,
+               Telemetry.ch3_energy_kwh, Telemetry.ch4_energy_kwh)
         .where(
             Telemetry.device_id.in_(device_ids),
             Telemetry.recorded_at >= day_start,
             Telemetry.recorded_at < day_end,
-            Telemetry.energy_kwh.is_not(None),
         )
         .order_by(Telemetry.device_id, Telemetry.recorded_at)
     )
@@ -841,18 +842,23 @@ def get_hourly_energy(
         s = bucket_start % 60
         return f"{h:02d}:{m:02d}:{s:02d}"
 
+    def total_energy(row) -> Decimal:
+        return (row.ch1_energy_kwh or Decimal("0")) + (row.ch2_energy_kwh or Decimal("0")) + \
+               (row.ch3_energy_kwh or Decimal("0")) + (row.ch4_energy_kwh or Decimal("0"))
+
     buckets: dict[str, Decimal] = {}
     prev_by_device: dict[uuid.UUID, Decimal] = {}
 
     for row in rows:
+        cur = total_energy(row)
         prev_val = prev_by_device.get(row.device_id)
         if prev_val is not None:
-            diff = row.energy_kwh - prev_val
+            diff = cur - prev_val
             if diff > 0:
                 col_time = row.recorded_at - timedelta(hours=5)
                 key = bucket_time_key(col_time)
                 buckets[key] = buckets.get(key, Decimal("0")) + diff
-        prev_by_device[row.device_id] = row.energy_kwh
+        prev_by_device[row.device_id] = cur
 
     result = []
     for key in sorted(buckets.keys()):
