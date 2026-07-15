@@ -173,7 +173,10 @@ const [channelCustomDate, setChannelCustomDate] = useState(() => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 });
-const [hourlyDate, setHourlyDate] = useState(() => new Date().toISOString().split("T")[0]);
+const [hourlyDate, setHourlyDate] = useState(() => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+});
 const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
 const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
   const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
@@ -1146,8 +1149,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
                 const s = totalSec % 60;
                 timeSlots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
               }
-              const targetLabelSec = hourlyBucketSeconds < 60 ? 60 : hourlyBucketSeconds < 300 ? 300 : hourlyBucketSeconds < 600 ? 1800 : 3600;
-              const labelInterval = Math.max(0, Math.round(targetLabelSec / hourlyBucketSeconds) - 1);
+              const labelInterval = Math.max(0, Math.ceil(timeSlots.length / 20) - 1);
               let cumKwh = 0;
               let cumCost = 0;
               const slotMap = new Map<string, { kwh: number; cost: number }>();
@@ -1201,7 +1203,6 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
                     yAxis: {
                       type: "value",
                       min: 0,
-                      max: 15,
                       name: "kWh",
                       nameTextStyle: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
                       axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
