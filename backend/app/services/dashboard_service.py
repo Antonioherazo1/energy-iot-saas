@@ -572,9 +572,10 @@ def get_channel_series(
         entry = dict(row._mapping)
         for ch_num in range(1, 5):
             ch_current = entry.get(f"ch{ch_num}")
-            ch_config = channels_map.get(ch_num)
-            ch_voltage = ch_config.voltage if ch_config else Decimal("110")
-            entry[f"ch{ch_num}_power"] = ch_current * ch_voltage if ch_current else None
+            if ch_current is not None:
+                ch_config = channels_map.get(ch_num)
+                ch_voltage = ch_config.voltage if ch_config else Decimal("110")
+                entry[f"ch{ch_num}_power"] = Decimal(str(ch_current)) * ch_voltage
         result.append(entry)
     return result
 
