@@ -783,12 +783,26 @@ def get_hourly_energy(
     db: Session,
     user: User,
     date: str,
+    device_id: uuid.UUID | None = None,
     organization_id: uuid.UUID | None = None,
     bucket_seconds: int = 600,
 ) -> list[dict]:
     organization_ids = get_accessible_organization_ids(db, user, organization_id)
     if not organization_ids:
         return []
+    if device_id:
+        dev = db.scalar(
+            select(Device).where(Device.id == device_id, Device.organization_id.in_(organization_ids))
+        )
+        if not dev:
+            return []
+        device_ids = [device_id]
+    else:
+        device_ids = db.scalars(
+            select(Device.id).where(Device.organization_id.in_(organization_ids))
+        ).all()
+        if not device_ids:
+            return []
 
     dt = datetime.fromisoformat(date)
     day_start = dt.replace(hour=5, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
@@ -810,9 +824,8 @@ def get_hourly_energy(
 
     rows = db.execute(
         select(Telemetry.device_id, Telemetry.recorded_at, Telemetry.energy_kwh)
-        .join(Device, Device.id == Telemetry.device_id)
         .where(
-            Device.organization_id.in_(organization_ids),
+            Telemetry.device_id.in_(device_ids),
             Telemetry.recorded_at >= day_start,
             Telemetry.recorded_at < day_end,
             Telemetry.energy_kwh.is_not(None),

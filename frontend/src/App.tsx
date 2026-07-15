@@ -508,7 +508,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
         else if (elapsedHours < 6) bucketSec = 300;
       }
       setHourlyBucketSeconds(bucketSec);
-      const data = await getHourlyEnergy(token, hourlyDate, bucketSec);
+      const data = await getHourlyEnergy(token, hourlyDate, bucketSec, selectedDeviceId ?? undefined);
       setHourlyData(data);
     } catch { /* ignore */ }
   }
@@ -516,7 +516,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
   useEffect(() => {
     if (!token || !user || onboardingStep <= 3) return;
     void loadHourlyData();
-  }, [token, user, onboardingStep, hourlyDate]);
+  }, [token, user, onboardingStep, hourlyDate, selectedDeviceId]);
 
   async function loadBillingData() {
     if (!token) return;
