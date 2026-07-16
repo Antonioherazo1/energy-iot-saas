@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_current_user
 from app.mqtt.client import mqtt_service
+from app.services.mqtt_cache import get_last_messages
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,11 @@ class CommandPayload(BaseModel):
     canal: int | None = None
     valor: float | None = None
     habilitado: bool | None = None
+
+
+@router.get("/last-messages")
+async def last_messages(user=Depends(get_current_user)):
+    return get_last_messages()
 
 
 @router.get("/diagnostic")

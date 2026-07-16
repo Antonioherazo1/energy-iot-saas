@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.schemas.telemetry import TelemetryIn
+from app.services.mqtt_cache import add_message
 from app.services.telemetry_service import InvalidDeviceKeyError, store_raw_telemetry
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,8 @@ class MQTTService:
             except (IndexError, ValidationError) as exc:
                 logger.warning("Invalid MQTT message on %s: %s", topic, exc)
                 return
+
+        add_message(topic, device_code, payload_dict)
 
         with SessionLocal() as db:
             try:

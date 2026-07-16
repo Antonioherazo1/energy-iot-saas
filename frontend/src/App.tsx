@@ -1,4 +1,4 @@
-import { Cpu, DollarSign, Download, Hash, LogOut, Menu, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Upload, Zap } from "lucide-react";
+import { Cpu, DollarSign, Download, Hash, LogOut, Menu, MessageSquare, Plus, PlugZap, RefreshCw, Settings, Trash2, Type, Upload, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { EChartsOption } from "echarts";
@@ -44,6 +44,7 @@ import {
   triggerOta,
   triggerOtaAll,
   getChannelSeries,
+  getLastMqttMessages,
 } from "./lib/api";
 import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, HourlyEnergy, LatestTelemetry, Organization, User } from "./types";
 
@@ -1547,6 +1548,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
               <SideMenuItem icon={<Type size={18} />} label="Factor de fuente" onClick={() => { setSideSection("font-scale"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Settings size={18} />} label="Validación días" onClick={() => { setSideSection("completeness"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<Upload size={18} />} label="Firmware" onClick={() => { setSideSection("firmware"); setShowSideMenu(false); }} />
+              <SideMenuItem icon={<MessageSquare size={18} />} label="Ultimos mensajes MQTT" onClick={() => { setSideSection("mqtt-last"); setShowSideMenu(false); }} />
               <SideMenuItem icon={<LogOut size={18} />} label="Salir" onClick={() => { setSideSection("logout"); setShowSideMenu(false); }} />
             </div>
           </aside>
@@ -1841,6 +1843,18 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
           />
         );
       })()}
+
+      {sideSection === "mqtt-last" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSideSection(null)}>
+          <section className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold">Ultimos mensajes MQTT</h2>
+              <button className="text-xs text-slate-400 hover:text-ink" onClick={() => setSideSection(null)} type="button">✕</button>
+            </div>
+            <MqttLastMessages token={token} />
+          </section>
+        </div>
+      )}
     </main>
   );
 }
@@ -2056,6 +2070,45 @@ function Esp32ConfigPanel({ token, deviceCode, deviceName, onClose }: { token: s
 
         <button className="mt-5 w-full rounded-md border border-line bg-white py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" onClick={onClose} type="button">Cerrar</button>
       </section>
+    </div>
+  );
+}
+
+function MqttLastMessages({ token }: { token: string }) {
+  const [messages, setMessages] = useState<Array<{ topic: string; device_code: string; payload: Record<string, unknown>; received_at: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getLastMqttMessages(token);
+      setMessages(data);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-400">Ultimos {messages.length} mensajes recibidos</p>
+        <button className="h-7 rounded border border-line bg-white px-2 text-xs text-slate-500 hover:bg-slate-50" onClick={load} type="button">{loading ? "..." : "Refrescar"}</button>
+      </div>
+      {messages.length === 0 ? (
+        <p className="py-6 text-center text-xs text-slate-400">Aun no se han recibido mensajes</p>
+      ) : (
+        messages.map((msg, i) => (
+          <div key={i} className="rounded-md border border-line bg-slate-50 p-3 text-xs font-mono">
+            <div className="mb-1 flex flex-wrap gap-x-3 gap-y-0.5 text-slate-500">
+              <span>Topico: <strong className="text-ink">{msg.topic}</strong></span>
+              <span>Dispositivo: <strong className="text-ink">{msg.device_code}</strong></span>
+              <span>Recibido: <strong className="text-ink">{new Date(msg.received_at).toLocaleString("es-CO")}</strong></span>
+            </div>
+            <pre className="mt-1 whitespace-pre-wrap break-all text-[11px] text-slate-700">{JSON.stringify(msg.payload, null, 2)}</pre>
+          </div>
+        ))
+      )}
     </div>
   );
 }

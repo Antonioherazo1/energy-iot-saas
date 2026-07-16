@@ -292,6 +292,10 @@ export function setSetting(token: string, key: string, value: string): Promise<{
   });
 }
 
+export function getLastMqttMessages(token: string): Promise<Array<{ topic: string; device_code: string; payload: Record<string, unknown>; received_at: string }>> {
+  return request("/esp32/last-messages", { token });
+}
+
 export function esp32GetStatus(token: string, deviceId: string): Promise<{ cached: boolean; data: Record<string, unknown> | null }> {
   return request(`/esp32/${deviceId}/status`, { token });
 }
