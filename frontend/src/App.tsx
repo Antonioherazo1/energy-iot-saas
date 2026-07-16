@@ -1531,7 +1531,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
       {showSideMenu && (
         <div className="fixed inset-0 z-50" onClick={() => setShowSideMenu(false)}>
           <div className="absolute inset-0 bg-black/40" />
-          <aside className="absolute right-0 top-0 h-full w-72 bg-white shadow-lg" onClick={(e) => e.stopPropagation()}>
+          <aside className="absolute right-0 top-0 h-full w-72 overflow-y-auto bg-white shadow-lg" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <h2 className="text-base font-semibold">Menu</h2>
               <button className="text-sm text-slate-400 hover:text-ink" onClick={() => setShowSideMenu(false)} type="button">✕</button>
