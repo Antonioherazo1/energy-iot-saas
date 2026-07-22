@@ -34,16 +34,8 @@ echo "==> Publishing frontend to $WEB_ROOT"
 sudo mkdir -p "$WEB_ROOT"
 sudo cp -r "$FRONTEND_DIR/dist/"* "$WEB_ROOT/"
 
-echo "==> Ensuring nginx firmware snippet and client_max_body_size"
-NGINX_SITE="/etc/nginx/sites-available/thinc"
-FIRMWARE_CONF="/etc/nginx/snippets/firmware.conf"
-if [ ! -f "$FIRMWARE_CONF" ]; then
-  echo 'location /firmware/ { client_max_body_size 50M; proxy_pass http://127.0.0.1:8000/firmware/; proxy_set_header Host $host; }' | sudo tee "$FIRMWARE_CONF" > /dev/null
-  echo "Created $FIRMWARE_CONF"
-fi
-if [ -f "$NGINX_SITE" ] && ! grep -q "firmware.conf" "$NGINX_SITE" 2>/dev/null; then
-  echo "WARNING: Add 'include /etc/nginx/snippets/firmware.conf;' inside the server block of $NGINX_SITE, then run sudo nginx -t && sudo systemctl reload nginx"
-fi
+echo "==> Deploying nginx config"
+sudo cp "$ROOT_DIR/frontend/nginx.conf" /etc/nginx/sites-available/thinc
 
 echo "==> Reloading Nginx"
 sudo nginx -t
