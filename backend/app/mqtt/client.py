@@ -109,9 +109,14 @@ class MQTTService:
 
         with SessionLocal() as db:
             try:
-                store_raw_telemetry(db=db, device_code=device_code, payload=payload)
+                result = store_raw_telemetry(db=db, device_code=device_code, payload=payload)
+                if result is None:
+                    logger.warning("Telemetry not stored for device_code=%s (device not found or inactive)", device_code)
             except InvalidDeviceKeyError:
                 logger.warning("Invalid MQTT device key for %s", device_code)
+            except Exception as exc:
+                logger.error("Error storing telemetry for %s: %s", device_code, exc)
+                db.rollback()
 
     def _handle_response(self, payload_dict: dict, topic: str) -> None:
         device_id = topic.split("/")[-1]

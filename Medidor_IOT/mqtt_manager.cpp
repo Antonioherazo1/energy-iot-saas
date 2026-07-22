@@ -3,6 +3,7 @@
 #define MQTT_MAX_PACKET_SIZE 512
 #include <PubSubClient.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <Update.h>
 #include "mqtt_manager.h"
 #include "storage_manager.h"
@@ -15,14 +16,24 @@ static unsigned long ultimoIntento = 0;
 static const unsigned long INTENTO_INTERVALO = 30000;
 
 static bool descargarOTA(const String& url) {
-  WiFiClient wifi;
   HTTPClient http;
-  http.begin(wifi, url);
+  if (url.startsWith("https://")) {
+    WiFiClientSecure* secure = new WiFiClientSecure();
+    secure->setInsecure();
+    http.begin(*secure, url);
+  } else {
+    WiFiClient* wifi = new WiFiClient();
+    http.begin(*wifi, url);
+  }
   http.setTimeout(120000);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   int code = http.GET();
   if (code != 200) {
     Serial.print("OTA HTTP error: ");
-    Serial.println(code);
+    Serial.print(code);
+    Serial.print(" (heap: ");
+    Serial.print(ESP.getFreeHeap());
+    Serial.println(")");
     http.end();
     return false;
   }
@@ -208,6 +219,17 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
   } else if (cmd == "ota") {
     String url = extraerStr("url");
     if (url.length() > 0) {
+      Serial.print("OTA URL: "); Serial.println(url);
+      Serial.print("WiFi status pre-OTA: "); Serial.println(WiFi.status());
+      Serial.print("WiFi IP: "); Serial.println(WiFi.localIP());
+      Serial.print("Free heap: "); Serial.println(ESP.getFreeHeap());
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("WiFi no conectado, reconectando...");
+        WiFi.disconnect();
+        WiFi.reconnect();
+        delay(5000);
+        Serial.print("WiFi status post-reconnect: "); Serial.println(WiFi.status());
+      }
       publicarRespuestaMQTT("{\"cmd\":\"ota\",\"ok\":true,\"status\":\"descargando\"}");
       bool ok = descargarOTA(url);
       if (ok) {
@@ -238,11 +260,14 @@ void iniciarMQTT() {
 bool conectarMQTT() {
   if (client.connected()) return true;
 
+  if (WiFi.status() != WL_CONNECTED) return false;
+
   unsigned long ahora = millis();
   if (ahora - ultimoIntento < INTENTO_INTERVALO) return false;
   ultimoIntento = ahora;
 
   Serial.print("Conectando MQTT...");
+  client.setBufferSize(512);
   if (client.connect(("ESP32_" + deviceID).c_str())) {
     Serial.println("conectado");
     String topicComando = String(TOPIC_COMANDO) + deviceID;

@@ -1,10 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import logging
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 from app.models.channel import DeviceChannel
 from app.models.device import Device
 from app.models.raw_telemetry import RawTelemetry
@@ -81,6 +84,7 @@ def _get_prev_energy_record(db: Session, device_id, recorded_at):
 def store_raw_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> RawTelemetry | None:
     device = db.scalar(select(Device).where(Device.code == device_code, Device.is_active.is_(True)))
     if device is None:
+        logger.warning("Device not found or inactive: %s", device_code)
         return None
     if not verify_device_key(payload.device_key, device.device_key_hash):
         raise InvalidDeviceKeyError

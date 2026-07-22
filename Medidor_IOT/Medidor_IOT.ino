@@ -26,12 +26,48 @@ void setup() {
   iniciarSensor();
   iniciarTiempo();
 
-  Serial.println("Sistema iniciado v2.0");
+  Serial.println("Sistema iniciado v2.1");
   Serial.print("Device ID: ");
   Serial.println(deviceID);
 }
 
+void enviarBatch() {
+  uint8_t batch[BUFFER_RECORD_SIZE * MAX_ENVIO_BUFFER];
+  int count = leerBufferBatch(batch, MAX_ENVIO_BUFFER);
+  for (int i = 0; i < count; i++) {
+    uint8_t* rec = batch + i * BUFFER_RECORD_SIZE;
+    uint32_t recEpoch = ((uint32_t)rec[0] << 24) | ((uint32_t)rec[1] << 16) | ((uint32_t)rec[2] << 8) | rec[3];
+    float ch1, ch2, ch3, ch4;
+    memcpy(&ch1, rec + 4, 4);
+    memcpy(&ch2, rec + 8, 4);
+    memcpy(&ch3, rec + 12, 4);
+    memcpy(&ch4, rec + 16, 4);
+    String hora = formatearEpoch(recEpoch);
+    String payload = "{";
+    payload += "\"device_id\":\"";
+    payload += deviceID;
+    payload += "\",\"timestamp\":\"";
+    payload += hora;
+    payload += "\",\"ch1\":";
+    payload += String(ch1, 2);
+    payload += ",\"ch2\":";
+    payload += String(ch2, 2);
+    payload += ",\"ch3\":";
+    payload += String(ch3, 2);
+    payload += ",\"ch4\":";
+    payload += String(ch4, 2);
+    payload += "}";
+    publicarMQTT(payload);
+    delay(50);
+  }
+  if (count > 0) {
+    Serial.print("Buffer enviados: ");
+    Serial.println(count);
+  }
+}
+
 void loop() {
+  verificarWiFi();
   conectarMQTT();
   loopMQTT();
 
@@ -43,51 +79,20 @@ void loop() {
   leerTodos(corrientes);
 
   bool conectado = client.connected();
-
   uint32_t epoch = obtenerUnixTime();
   bool tsValido = tiempoValido();
 
   if (conectado) {
-    if (!hayEnvioPendiente()) {
-      if (contarRegistrosPendientes() > 0) {
+    if (contarRegistrosPendientes() > 0) {
+      if (!hayEnvioPendiente()) {
         iniciarEnvioBuffer();
+      }
+      if (hayEnvioPendiente()) {
+        enviarBatch();
+        return;
       }
     }
 
-    if (hayEnvioPendiente()) {
-      uint8_t batch[BUFFER_RECORD_SIZE * MAX_ENVIO_BUFFER];
-      int count = leerBufferBatch(batch, MAX_ENVIO_BUFFER);
-      for (int i = 0; i < count; i++) {
-        uint8_t* rec = batch + i * BUFFER_RECORD_SIZE;
-        uint32_t recEpoch = ((uint32_t)rec[0] << 24) | ((uint32_t)rec[1] << 16) | ((uint32_t)rec[2] << 8) | rec[3];
-        float ch1, ch2, ch3, ch4;
-        memcpy(&ch1, rec + 4, 4);
-        memcpy(&ch2, rec + 8, 4);
-        memcpy(&ch3, rec + 12, 4);
-        memcpy(&ch4, rec + 16, 4);
-        String hora = formatearEpoch(recEpoch);
-        String payload = "{";
-        payload += "\"device_id\":\"";
-        payload += deviceID;
-        payload += "\",\"timestamp\":\"";
-        payload += hora;
-        payload += "\",\"ch1\":";
-        payload += String(ch1, 2);
-        payload += ",\"ch2\":";
-        payload += String(ch2, 2);
-        payload += ",\"ch3\":";
-        payload += String(ch3, 2);
-        payload += ",\"ch4\":";
-        payload += String(ch4, 2);
-        payload += ",\"Alejo\":\"Alejo\"";
-        payload += "}";
-        publicarMQTT(payload);
-      }
-      if (count > 0) {
-        Serial.print("Buffer enviados: ");
-        Serial.println(count);
-      }
-    }
     if (tsValido) {
       String hora = formatearEpoch(epoch);
       String payload = "{";
@@ -108,10 +113,8 @@ void loop() {
       payload += ",";
       payload += "\"ch4\":";
       payload += String(corrientes[3], 2);
-      payload += ",\"Alejo\":\"Alejo\"";
       payload += "}";
 
-      Serial.println(payload);
       publicarMQTT(payload);
     }
   } else if (tsValido) {

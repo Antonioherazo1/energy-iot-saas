@@ -2,5 +2,6 @@
 #define WIFI_MANAGER_H
 
 void iniciarWiFi();
+void verificarWiFi();
 
 #endif
