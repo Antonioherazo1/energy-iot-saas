@@ -31,7 +31,7 @@ void setup() {
   iniciarSensor();
   iniciarTiempo();
 
-  Serial.println("Sistema iniciado v2.1");
+  Serial.println("Sistema iniciado v2.2");
   Serial.print("Device ID: ");
   Serial.println(deviceID);
 }
@@ -61,7 +61,7 @@ void enviarBatch() {
     payload += safeFloat(ch3);
     payload += ",\"ch4\":";
     payload += safeFloat(ch4);
-    payload += "}";
+    payload += ",\"fw\":\"2.2\"}";
     publicarMQTT(payload);
     delay(50);
   }
@@ -118,7 +118,7 @@ void loop() {
       payload += ",";
       payload += "\"ch4\":";
       payload += safeFloat(corrientes[3]);
-      payload += "}";
+      payload += ",\"fw\":\"2.2\"}";
 
       publicarMQTT(payload);
     }

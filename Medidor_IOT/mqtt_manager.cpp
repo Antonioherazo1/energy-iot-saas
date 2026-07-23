@@ -143,7 +143,7 @@ void callbackMQTT(char* topic, byte* payload, unsigned int length) {
     resp = "{\"cmd\":\"status\",\"uptime\":" + String(millis() / 1000);
     resp += ",\"rssi\":" + String(WiFi.RSSI());
     resp += ",\"buffer\":" + String(contarRegistrosPendientes());
-    resp += ",\"firmware\":\"2.0\"";
+    resp += ",\"firmware\":\"2.2\"";
     resp += ",\"settings\":{";
     resp += "\"alpha\":" + String(configApp.alpha, 4);
     resp += ",\"intervalo\":" + String(configApp.intervalo);
