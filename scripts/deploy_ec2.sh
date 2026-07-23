@@ -36,6 +36,9 @@ sudo cp -r "$FRONTEND_DIR/dist/"* "$WEB_ROOT/"
 
 echo "==> Deploying nginx config"
 sudo cp "$ROOT_DIR/frontend/nginx.conf" /etc/nginx/sites-available/thinc
+sudo ln -sf /etc/nginx/sites-available/thinc /etc/nginx/sites-enabled/thinc
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/letsencrypt/live/thinc.site-0001 /etc/letsencrypt/live/thinc.site 2>/dev/null || true
 
 echo "==> Reloading Nginx"
 sudo nginx -t
