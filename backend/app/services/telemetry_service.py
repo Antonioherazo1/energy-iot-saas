@@ -92,7 +92,7 @@ def store_raw_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> 
     now = datetime.now(timezone.utc)
     recorded_at = payload.recorded_at or now
     if recorded_at.tzinfo is None:
-        recorded_at = recorded_at.replace(tzinfo=timezone.utc)
+        recorded_at = recorded_at.replace(tzinfo=timezone(timedelta(hours=-5)))
     device.last_seen_at = now
 
     channels = list(db.scalars(
@@ -230,7 +230,7 @@ def create_telemetry(db: Session, device_code: str, payload: TelemetryIn) -> Tel
     now = datetime.now(timezone.utc)
     recorded_at = payload.recorded_at or now
     if recorded_at.tzinfo is None:
-        recorded_at = recorded_at.replace(tzinfo=timezone.utc)
+        recorded_at = recorded_at.replace(tzinfo=timezone(timedelta(hours=-5)))
     device.last_seen_at = now
 
     channels = list(db.scalars(
