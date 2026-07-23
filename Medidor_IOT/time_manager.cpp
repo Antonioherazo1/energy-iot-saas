@@ -46,7 +46,7 @@ bool tiempoValido() {
 
 String formatearEpoch(uint32_t epoch) {
   time_t t = (time_t)epoch;
-  struct tm* timeinfo = gmtime(&t);
+  struct tm* timeinfo = localtime(&t);
   if (!timeinfo) {
     return "2000-01-01 00:00:00";
   }
