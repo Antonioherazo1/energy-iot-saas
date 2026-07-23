@@ -636,6 +636,16 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
       return `${hh}:${mm}`;
     });
 
+    const gapThresholdMs = isShort ? 30 * 1000 : 5 * 60 * 1000;
+    const chartGaps: Array<{ from: string; to: string }> = [];
+    for (let i = 1; i < sampled.length; i++) {
+      const prev = new Date(sampled[i - 1].recorded_at ?? "").getTime();
+      const curr = new Date(sampled[i].recorded_at ?? "").getTime();
+      if (curr - prev > gapThresholdMs) {
+        chartGaps.push({ from: times[i - 1], to: times[i] });
+      }
+    }
+
     const series = deviceChannels
       .filter((ch) => ch.is_active)
       .map((ch, idx) => {
@@ -647,32 +657,14 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
           data: sampled.map((d) => numeric(d[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null)),
           lineStyle: { color: colors[idx % colors.length], width: 2 },
         };
-        if (idx === 0 && telemetryHealth && telemetryHealth.gaps.length > 0) {
+        if (idx === 0 && chartGaps.length > 0) {
           s.markArea = {
             silent: true,
-            itemStyle: { color: "rgba(251,191,36,0.12)" },
-            data: telemetryHealth.gaps.map((g) => {
-              const fmt = (iso: string) => {
-                const t = new Date(iso);
-                const hh = String(t.getHours()).padStart(2, "0");
-                const mm = String(t.getMinutes()).padStart(2, "0");
-                return isShort ? `${hh}:${mm}:${String(t.getSeconds()).padStart(2, "0")}` : `${hh}:${mm}`;
-              };
-              return [{ xAxis: fmt(g.from), name: "Offline" }, { xAxis: fmt(g.to) }];
-            }),
-          };
-          s.markPoint = {
-            symbol: "pin",
-            symbolSize: 28,
-            itemStyle: { color: "#2563eb" },
-            label: { fontSize: 9, formatter: "{c}" },
-            data: telemetryHealth.buffer_events.slice(0, 8).map((be) => {
-              const t = new Date(be.timestamp);
-              const hh = String(t.getHours()).padStart(2, "0");
-              const mm = String(t.getMinutes()).padStart(2, "0");
-              const label = isShort ? `${hh}:${mm}:${String(t.getSeconds()).padStart(2, "0")}` : `${hh}:${mm}`;
-              return { coord: [label, 0], value: "B", name: `Buffer replay (${be.interval_sec}s)` };
-            }),
+            itemStyle: { color: "rgba(251,191,36,0.15)" },
+            data: chartGaps.map((g) => [
+              { xAxis: g.from, name: "Sin datos" },
+              { xAxis: g.to },
+            ]),
           };
         }
         return s;
@@ -702,7 +694,7 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
       },
       series,
     };
-  }, [channelSeriesData, deviceChannels, channelMode, rowFontScales, telemetryHealth]);
+  }, [channelSeriesData, deviceChannels, channelMode, rowFontScales]);
 
   if (!token || !user || (onboardingStep === 0 && user === null)) {
     const signingUp = authMode === "signup";
