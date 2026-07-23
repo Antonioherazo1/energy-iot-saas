@@ -19,6 +19,7 @@ class TelemetryBase(BaseModel):
 
 class TelemetryIn(TelemetryBase):
     device_key: str | None = None
+    tz_offset: int | None = None
 
 
 class TelemetryRead(TelemetryBase):

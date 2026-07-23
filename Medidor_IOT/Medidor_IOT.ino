@@ -61,7 +61,7 @@ void enviarBatch() {
     payload += safeFloat(ch3);
     payload += ",\"ch4\":";
     payload += safeFloat(ch4);
-    payload += ",\"fw\":\"2.2\"}";
+    payload += ",\"fw\":\"2.2\",\"tz_offset\":-5}";
     publicarMQTT(payload);
     delay(50);
   }
@@ -118,7 +118,7 @@ void loop() {
       payload += ",";
       payload += "\"ch4\":";
       payload += safeFloat(corrientes[3]);
-      payload += ",\"fw\":\"2.3\"}";
+      payload += ",\"fw\":\"2.3\",\"tz_offset\":-5}";
 
       publicarMQTT(payload);
     }

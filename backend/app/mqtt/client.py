@@ -1,7 +1,7 @@
 import json
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import paho.mqtt.client as mqtt
 from pydantic import ValidationError
@@ -53,19 +53,22 @@ class MQTTService:
         ch3 = float(payload_dict.get("ch3", 0))
         ch4 = float(payload_dict.get("ch4", 0))
 
+        tz_offset = int(payload_dict.get("tz_offset", 0))
+        tz = timezone(timedelta(hours=tz_offset))
+
         timestamp_str = payload_dict.get("timestamp", "")
         if timestamp_str and ":" in timestamp_str and len(timestamp_str) <= 8:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(tz)
             recorded_at = now
         elif timestamp_str:
             try:
                 recorded_at = datetime.fromisoformat(timestamp_str)
                 if recorded_at.tzinfo is None:
-                    recorded_at = recorded_at.replace(tzinfo=timezone.utc)
+                    recorded_at = recorded_at.replace(tzinfo=tz)
             except (ValueError, TypeError):
-                recorded_at = datetime.now(timezone.utc)
+                recorded_at = datetime.now(tz)
         else:
-            recorded_at = datetime.now(timezone.utc)
+            recorded_at = datetime.now(tz)
 
         telemetry = TelemetryIn(
             current=ch1 + ch2 + ch3 + ch4,
@@ -75,6 +78,7 @@ class MQTTService:
             ch4=ch4,
             device_key=None,
             recorded_at=recorded_at,
+            tz_offset=tz_offset,
         )
         return device_id, telemetry
 
