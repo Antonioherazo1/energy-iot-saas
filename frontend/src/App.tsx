@@ -619,6 +619,25 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
     void loadChannelDailyEnergy();
   }, [token, selectedDeviceId]);
 
+  const chartGaps = useMemo(() => {
+    const isShort = channelMode === "10min" || channelMode === "1hour";
+    const gapThresholdMs = isShort ? 30 * 1000 : 5 * 60 * 1000;
+    const gaps: Array<{ from: string; to: string }> = [];
+    for (let i = 1; i < channelSeriesData.length; i++) {
+      const prev = new Date(channelSeriesData[i - 1].recorded_at ?? "").getTime();
+      const curr = new Date(channelSeriesData[i].recorded_at ?? "").getTime();
+      if (curr - prev > gapThresholdMs) {
+        const fmt = (d: Date) => {
+          const hh = String(d.getHours()).padStart(2, "0");
+          const mm = String(d.getMinutes()).padStart(2, "0");
+          return isShort ? `${hh}:${mm}:${String(d.getSeconds()).padStart(2, "0")}` : `${hh}:${mm}`;
+        };
+        gaps.push({ from: fmt(new Date(channelSeriesData[i - 1].recorded_at ?? "")), to: fmt(new Date(channelSeriesData[i].recorded_at ?? "")) });
+      }
+    }
+    return gaps;
+  }, [channelSeriesData, channelMode]);
+
   const channelSeriesOption = useMemo<EChartsOption>(() => {
     const colors = ["#0f766e", "#2563eb", "#d97706", "#dc2626"];
     const sourceData = channelSeriesData;
@@ -636,16 +655,6 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
       return `${hh}:${mm}`;
     });
 
-    const gapThresholdMs = isShort ? 30 * 1000 : 5 * 60 * 1000;
-    const chartGaps: Array<{ from: string; to: string }> = [];
-    for (let i = 1; i < sampled.length; i++) {
-      const prev = new Date(sampled[i - 1].recorded_at ?? "").getTime();
-      const curr = new Date(sampled[i].recorded_at ?? "").getTime();
-      if (curr - prev > gapThresholdMs) {
-        chartGaps.push({ from: times[i - 1], to: times[i] });
-      }
-    }
-
     const series = deviceChannels
       .filter((ch) => ch.is_active)
       .map((ch, idx) => {
@@ -662,7 +671,7 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
             silent: true,
             itemStyle: { color: "rgba(251,191,36,0.15)" },
             data: chartGaps.map((g) => [
-              { xAxis: g.from, name: "Sin datos" },
+              { xAxis: g.from },
               { xAxis: g.to },
             ]),
           };
@@ -1199,6 +1208,12 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
               )
             ) : (
               <Chart option={channelSeriesOption} className="h-72 sm:h-72 lg:h-96" />
+            )}
+            {chartGaps.length > 0 && (
+              <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+                <span className="inline-block h-3 w-6 rounded-sm" style={{ backgroundColor: "rgba(251,191,36,0.3)" }} />
+                Sin datos en ese rango
+              </div>
             )}
             {channelMode === "10min" || channelMode === "1hour" ? (
               <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-1 text-xs text-slate-400">· actualiza cada 5s</div>
