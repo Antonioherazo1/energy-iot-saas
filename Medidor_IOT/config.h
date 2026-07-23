@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+#define MQTT_MAX_PACKET_SIZE 512
+
 // MQTT
 inline const char* MQTT_SERVER = "thinc.site";
 inline const int MQTT_PORT = 1883;

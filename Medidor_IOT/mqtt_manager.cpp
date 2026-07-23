@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#define MQTT_MAX_PACKET_SIZE 512
+#include "config.h"
 #include <PubSubClient.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>

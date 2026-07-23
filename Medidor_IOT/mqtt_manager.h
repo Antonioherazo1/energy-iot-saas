@@ -2,8 +2,8 @@
 #define MQTT_MANAGER_H
 
 #include <Arduino.h>
-#include <PubSubClient.h>
 #include "config.h"
+#include <PubSubClient.h>
 
 extern PubSubClient client;
 extern Configuracion configApp;

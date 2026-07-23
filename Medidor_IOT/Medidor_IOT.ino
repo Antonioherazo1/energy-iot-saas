@@ -12,6 +12,11 @@ String deviceID;
 unsigned long ultimaLectura = 0;
 static const int MAX_ENVIO_BUFFER = 15;
 
+String safeFloat(float v) {
+  if (isnan(v) || isinf(v)) return "0.00";
+  return String(v, 2);
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -49,13 +54,13 @@ void enviarBatch() {
     payload += "\",\"timestamp\":\"";
     payload += hora;
     payload += "\",\"ch1\":";
-    payload += String(ch1, 2);
+    payload += safeFloat(ch1);
     payload += ",\"ch2\":";
-    payload += String(ch2, 2);
+    payload += safeFloat(ch2);
     payload += ",\"ch3\":";
-    payload += String(ch3, 2);
+    payload += safeFloat(ch3);
     payload += ",\"ch4\":";
-    payload += String(ch4, 2);
+    payload += safeFloat(ch4);
     payload += "}";
     publicarMQTT(payload);
     delay(50);
@@ -103,16 +108,16 @@ void loop() {
       payload += hora;
       payload += "\",";
       payload += "\"ch1\":";
-      payload += String(corrientes[0], 2);
+      payload += safeFloat(corrientes[0]);
       payload += ",";
       payload += "\"ch2\":";
-      payload += String(corrientes[1], 2);
+      payload += safeFloat(corrientes[1]);
       payload += ",";
       payload += "\"ch3\":";
-      payload += String(corrientes[2], 2);
+      payload += safeFloat(corrientes[2]);
       payload += ",";
       payload += "\"ch4\":";
-      payload += String(corrientes[3], 2);
+      payload += safeFloat(corrientes[3]);
       payload += "}";
 
       publicarMQTT(payload);
