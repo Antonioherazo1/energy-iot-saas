@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import Numeric, Select, and_, case, desc, func, select
+from sqlalchemy import Numeric, Select, and_, case, desc, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from app.models.channel import DeviceChannel
@@ -429,7 +429,8 @@ def get_channel_time_series(
         RawTelemetry.ch4_energy_kwh,
     ).join(Device, Device.id == RawTelemetry.device_id).where(
         Device.organization_id.in_(organization_ids),
-        RawTelemetry.ch1.is_not(None),
+        or_(RawTelemetry.ch1.is_not(None), RawTelemetry.ch2.is_not(None),
+            RawTelemetry.ch3.is_not(None), RawTelemetry.ch4.is_not(None)),
     )
 
     agg = select(
@@ -445,7 +446,8 @@ def get_channel_time_series(
         Telemetry.ch4_energy_kwh,
     ).join(Device, Device.id == Telemetry.device_id).where(
         Device.organization_id.in_(organization_ids),
-        Telemetry.ch1.is_not(None),
+        or_(Telemetry.ch1.is_not(None), Telemetry.ch2.is_not(None),
+            Telemetry.ch3.is_not(None), Telemetry.ch4.is_not(None)),
     )
 
     union_q = union_all(raw, agg).cte()
@@ -482,7 +484,8 @@ def get_realtime_currents(
     ).where(
         RawTelemetry.device_id == device.id,
         RawTelemetry.recorded_at >= since,
-        RawTelemetry.ch1.is_not(None),
+        or_(RawTelemetry.ch1.is_not(None), RawTelemetry.ch2.is_not(None),
+            RawTelemetry.ch3.is_not(None), RawTelemetry.ch4.is_not(None)),
     )
 
     agg = select(
@@ -494,7 +497,8 @@ def get_realtime_currents(
     ).where(
         Telemetry.device_id == device.id,
         Telemetry.recorded_at >= since,
-        Telemetry.ch1.is_not(None),
+        or_(Telemetry.ch1.is_not(None), Telemetry.ch2.is_not(None),
+            Telemetry.ch3.is_not(None), Telemetry.ch4.is_not(None)),
     )
 
     union_q = union_all(raw, agg).cte()
@@ -542,7 +546,8 @@ def get_channel_series(
         RawTelemetry.device_id == device.id,
         RawTelemetry.recorded_at >= since,
         RawTelemetry.recorded_at <= until,
-        RawTelemetry.ch1.is_not(None),
+        or_(RawTelemetry.ch1.is_not(None), RawTelemetry.ch2.is_not(None),
+            RawTelemetry.ch3.is_not(None), RawTelemetry.ch4.is_not(None)),
     )
 
     agg = select(
@@ -559,7 +564,8 @@ def get_channel_series(
         Telemetry.device_id == device.id,
         Telemetry.recorded_at >= since,
         Telemetry.recorded_at <= until,
-        Telemetry.ch1.is_not(None),
+        or_(Telemetry.ch1.is_not(None), Telemetry.ch2.is_not(None),
+            Telemetry.ch3.is_not(None), Telemetry.ch4.is_not(None)),
     )
 
     union_q = union_all(raw, agg).cte()
@@ -620,7 +626,8 @@ def get_channel_day_series(
             Telemetry.device_id == device.id,
             Telemetry.recorded_at >= day_start,
             Telemetry.recorded_at <= day_end,
-            Telemetry.ch1.is_not(None),
+            or_(Telemetry.ch1.is_not(None), Telemetry.ch2.is_not(None),
+                Telemetry.ch3.is_not(None), Telemetry.ch4.is_not(None)),
         )
         .order_by(Telemetry.recorded_at)
     )

@@ -620,8 +620,18 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
   }, [token, selectedDeviceId]);
 
   const chartGaps = useMemo(() => {
+    if (channelSeriesData.length < 2) return [];
     const isShort = channelMode === "10min" || channelMode === "1hour";
-    const gapThresholdMs = isShort ? 30 * 1000 : 5 * 60 * 1000;
+    const intervals: number[] = [];
+    for (let i = 1; i < channelSeriesData.length; i++) {
+      const prev = new Date(channelSeriesData[i - 1].recorded_at ?? "").getTime();
+      const curr = new Date(channelSeriesData[i].recorded_at ?? "").getTime();
+      if (curr > prev) intervals.push(curr - prev);
+    }
+    if (intervals.length === 0) return [];
+    intervals.sort((a, b) => a - b);
+    const medianInterval = intervals[Math.floor(intervals.length / 2)];
+    const gapThresholdMs = Math.max(60_000, medianInterval * 3);
     const gaps: Array<{ from: string; to: string }> = [];
     for (let i = 1; i < channelSeriesData.length; i++) {
       const prev = new Date(channelSeriesData[i - 1].recorded_at ?? "").getTime();
