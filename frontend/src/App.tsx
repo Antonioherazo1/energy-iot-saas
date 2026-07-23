@@ -45,8 +45,10 @@ import {
   triggerOtaAll,
   getChannelSeries,
   getLastMqttMessages,
+  getTelemetryHealth,
 } from "./lib/api";
 import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, HourlyEnergy, LatestTelemetry, Organization, User } from "./types";
+import type { TelemetryHealth } from "./lib/api";
 
 const tokenKey = "energy_iot_access_token";
 const refreshKey = "energy_iot_refresh_token";
@@ -181,10 +183,11 @@ const [hourlyDate, setHourlyDate] = useState(() => {
 });
 const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
 const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
-  const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
-  const [esp32Cached, setEsp32Cached] = useState(false);
-  const [esp32Loading, setEsp32Loading] = useState(false);
-  const [esp32AdminPassword, setEsp32AdminPassword] = useState("");
+const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
+const [esp32Cached, setEsp32Cached] = useState(false);
+const [esp32Loading, setEsp32Loading] = useState(false);
+const [esp32AdminPassword, setEsp32AdminPassword] = useState("");
+const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(null);
 
   useEffect(() => {
     localStorage.setItem("row_font_scales", JSON.stringify(rowFontScales));
@@ -400,6 +403,9 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
   useEffect(() => {
     if (selectedDeviceId) {
       void loadDeviceChannels(selectedDeviceId);
+      if (token) {
+        getTelemetryHealth(token, selectedDeviceId, 24).then(setTelemetryHealth).catch(() => setTelemetryHealth(null));
+      }
     }
   }, [selectedDeviceId]);
 
@@ -632,14 +638,45 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
 
     const series = deviceChannels
       .filter((ch) => ch.is_active)
-      .map((ch, idx) => ({
-        type: "line" as const,
-        smooth: true,
-        symbol: "none",
-        name: ch.name,
-        data: sampled.map((d) => numeric(d[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null)),
-        lineStyle: { color: colors[idx % colors.length], width: 2 },
-      }));
+      .map((ch, idx) => {
+        const s: any = {
+          type: "line" as const,
+          smooth: true,
+          symbol: "none",
+          name: ch.name,
+          data: sampled.map((d) => numeric(d[`ch${ch.channel_number}` as keyof LatestTelemetry] as string | null)),
+          lineStyle: { color: colors[idx % colors.length], width: 2 },
+        };
+        if (idx === 0 && telemetryHealth && telemetryHealth.gaps.length > 0) {
+          s.markArea = {
+            silent: true,
+            itemStyle: { color: "rgba(251,191,36,0.12)" },
+            data: telemetryHealth.gaps.map((g) => {
+              const fmt = (iso: string) => {
+                const t = new Date(iso);
+                const hh = String(t.getHours()).padStart(2, "0");
+                const mm = String(t.getMinutes()).padStart(2, "0");
+                return isShort ? `${hh}:${mm}:${String(t.getSeconds()).padStart(2, "0")}` : `${hh}:${mm}`;
+              };
+              return [{ xAxis: fmt(g.from), name: "Offline" }, { xAxis: fmt(g.to) }];
+            }),
+          };
+          s.markPoint = {
+            symbol: "pin",
+            symbolSize: 28,
+            itemStyle: { color: "#2563eb" },
+            label: { fontSize: 9, formatter: "{c}" },
+            data: telemetryHealth.buffer_events.slice(0, 8).map((be) => {
+              const t = new Date(be.timestamp);
+              const hh = String(t.getHours()).padStart(2, "0");
+              const mm = String(t.getMinutes()).padStart(2, "0");
+              const label = isShort ? `${hh}:${mm}:${String(t.getSeconds()).padStart(2, "0")}` : `${hh}:${mm}`;
+              return { coord: [label, 0], value: "B", name: `Buffer replay (${be.interval_sec}s)` };
+            }),
+          };
+        }
+        return s;
+      });
 
     return {
       grid: { left: lsz(56, rowFontScales.chart), right: 16, top: 36 + lsz(36, rowFontScales.chart), bottom: lsz(96, rowFontScales.chart) },
@@ -665,7 +702,7 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
       },
       series,
     };
-  }, [channelSeriesData, deviceChannels, channelMode, rowFontScales]);
+  }, [channelSeriesData, deviceChannels, channelMode, rowFontScales, telemetryHealth]);
 
   if (!token || !user || (onboardingStep === 0 && user === null)) {
     const signingUp = authMode === "signup";
@@ -978,6 +1015,58 @@ const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
             </span>
           </div>
         </div>
+
+        {/* Device health bar */}
+        {selectedDeviceId && telemetryHealth && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line bg-white px-4 py-2 text-xs">
+            <span className="font-medium text-slate-600">
+              {telemetryHealth.total_records} registros (24h)
+            </span>
+            {telemetryHealth.avg_interval_sec != null && (
+              <span className="text-slate-500">
+                Intervalo avg: {telemetryHealth.avg_interval_sec}s
+              </span>
+            )}
+            {telemetryHealth.gaps.length > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                {telemetryHealth.gaps.length} gap{telemetryHealth.gaps.length !== 1 ? "s" : ""} offline
+              </span>
+            )}
+            {telemetryHealth.buffer_events.length > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                {telemetryHealth.buffer_events.length} registros replay del buffer
+              </span>
+            )}
+            {telemetryHealth.gaps.length === 0 && telemetryHealth.buffer_events.length === 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 font-medium text-green-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                Sin gaps - datos continuos
+              </span>
+            )}
+            {telemetryHealth.gaps.length > 0 && (
+              <details className="group">
+                <summary className="cursor-pointer text-slate-400 hover:text-slate-600">Ver gaps</summary>
+                <div className="mt-1 max-h-32 overflow-y-auto rounded border border-line bg-slate-50 p-2">
+                  {telemetryHealth.gaps.map((g, i) => {
+                    const dur = g.duration_sec;
+                    const durStr = dur > 3600 ? `${(dur / 3600).toFixed(1)}h` : `${Math.round(dur / 60)}min`;
+                    const fromLocal = new Date(g.from).toLocaleString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: false });
+                    const toLocal = new Date(g.to).toLocaleString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: false });
+                    return (
+                      <div key={i} className="flex justify-between py-0.5 text-xs">
+                        <span className="text-slate-600">{fromLocal} → {toLocal}</span>
+                        <span className="font-medium text-amber-600">{durStr} offline</span>
+                        <span className="text-slate-400">{g.records_after} reg. despues</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
 
         {selectedDeviceId && deviceChannels.length > 0 ? (
           <>

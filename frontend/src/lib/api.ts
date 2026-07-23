@@ -354,3 +354,16 @@ export async function triggerOtaAll(token: string, firmwareId: string): Promise<
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export interface TelemetryHealth {
+  device_id: string;
+  hours: number;
+  total_records: number;
+  gaps: Array<{ from: string; to: string; duration_sec: number; records_after: number }>;
+  buffer_events: Array<{ timestamp: string; interval_sec: number; normal_interval_sec: number }>;
+  avg_interval_sec: number | null;
+}
+
+export async function getTelemetryHealth(token: string, deviceId: string, hours = 24): Promise<TelemetryHealth> {
+  return request(`/esp32/${deviceId}/telemetry-health?hours=${hours}`, { token });
+}

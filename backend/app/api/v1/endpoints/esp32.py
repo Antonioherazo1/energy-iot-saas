@@ -1,8 +1,15 @@
+import json
 import logging
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
+from sqlalchemy import select, func, text
 
 from app.api.deps import get_current_user
+from app.db.session import SessionLocal
+from app.models.device import Device
+from app.models.raw_telemetry import RawTelemetry
 from app.mqtt.client import mqtt_service
 from app.services.mqtt_cache import get_last_messages
 from app.core.config import settings
@@ -93,3 +100,72 @@ async def send_admin_command(
     import json
     mqtt_service.publish_command(device_id, json.dumps(cmd_dict, separators=(",", ":")))
     return {"ok": True, "command": cmd_dict, "admin": True}
+
+
+@router.get("/{device_id}/telemetry-health")
+async def get_telemetry_health(device_id: str, hours: int = 24, user=Depends(get_current_user)):
+    with SessionLocal() as db:
+        device = db.scalar(select(Device).where(Device.id == device_id))
+        if device is None:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        rows = db.execute(
+            select(RawTelemetry.recorded_at)
+            .where(RawTelemetry.device_id == device.id, RawTelemetry.recorded_at >= since)
+            .order_by(RawTelemetry.recorded_at.asc())
+        ).scalars().all()
+
+        if len(rows) < 2:
+            return {
+                "device_id": device_id,
+                "hours": hours,
+                "total_records": len(rows),
+                "gaps": [],
+                "buffer_events": [],
+                "avg_interval_sec": None,
+            }
+
+        gaps = []
+        buffer_events = []
+        intervals = []
+
+        for i in range(1, len(rows)):
+            prev_ts = rows[i - 1]
+            curr_ts = rows[i]
+            if prev_ts.tzinfo is None:
+                prev_ts = prev_ts.replace(tzinfo=timezone.utc)
+            if curr_ts.tzinfo is None:
+                curr_ts = curr_ts.replace(tzinfo=timezone.utc)
+            delta = (curr_ts - prev_ts).total_seconds()
+
+            intervals.append(delta)
+
+            if delta > 300:
+                gaps.append({
+                    "from": prev_ts.isoformat(),
+                    "to": curr_ts.isoformat(),
+                    "duration_sec": int(delta),
+                    "records_after": min(20, len(rows) - i),
+                })
+
+            if i >= 3:
+                avg_before = sum(intervals[max(0, i - 10):i]) / min(10, i)
+                if delta < avg_before * 0.3 and delta < 60 and avg_before > 10:
+                    buffer_events.append({
+                        "timestamp": curr_ts.isoformat(),
+                        "interval_sec": round(delta, 1),
+                        "normal_interval_sec": round(avg_before, 1),
+                    })
+
+        avg_interval = sum(intervals) / len(intervals) if intervals else None
+
+        return {
+            "device_id": device_id,
+            "hours": hours,
+            "total_records": len(rows),
+            "gaps": gaps[-20:],
+            "buffer_events": buffer_events[-50:],
+            "avg_interval_sec": round(avg_interval, 1) if avg_interval else None,
+        }
