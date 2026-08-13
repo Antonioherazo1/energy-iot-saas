@@ -118,7 +118,7 @@ void loop() {
       payload += ",";
       payload += "\"ch4\":";
       payload += safeFloat(corrientes[3]);
-      payload += ",\"fw\":\"2.3\",\"tz_offset\":-5}";
+      payload += ",\"fw\":\"2.4\",\"tz_offset\":-5}";
 
       publicarMQTT(payload);
     }

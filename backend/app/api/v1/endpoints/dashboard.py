@@ -7,13 +7,14 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font
-from sqlalchemy import and_, select, text
+from sqlalchemy import and_, select, text, union_all
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.device import Device
+from app.models.raw_telemetry import RawTelemetry
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.schemas.dashboard import DashboardSummaryRead, DeviceStatusRead, EnergyBucketRead, EnergySlopeRead, HourlyEnergyRead, LatestTelemetryRead
@@ -22,6 +23,15 @@ from app.services.dashboard_service import get_accessible_organization_ids, get_
 router = APIRouter()
 
 COL_TZ = timedelta(hours=-5)  # Colombia (UTC-5)
+
+
+def _parse_dt(s: str) -> datetime:
+    """Parse ISO datetime, normalizing the 'Z' suffix into +00:00."""
+    s = s.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is not None:
+        dt = dt.replace(tzinfo=None)
+    return dt
 
 
 @router.get("/summary", response_model=DashboardSummaryRead)
@@ -204,20 +214,58 @@ def telemetry_csv(
     if not organization_ids:
         return _empty_excel()
 
-    filters = [Device.organization_id.in_(organization_ids)]
-    if start:
-        filters.append(Telemetry.recorded_at >= datetime.fromisoformat(start))
-    if end:
-        filters.append(Telemetry.recorded_at <= datetime.fromisoformat(end))
+    device_ids = list(db.scalars(
+        select(Device.id).where(Device.organization_id.in_(organization_ids))
+    ))
+    if not device_ids:
+        return _empty_excel()
 
-    query = (
-        select(Telemetry, Device)
-        .join(Device, Telemetry.device_id == Device.id)
-        .where(and_(*filters))
-        .order_by(Telemetry.recorded_at.desc())
-        .limit(limit)
+    raw_select = select(
+        RawTelemetry.recorded_at.label("recorded_at"),
+        RawTelemetry.voltage.label("voltage"),
+        RawTelemetry.energy_kwh.label("energy_kwh"),
+        RawTelemetry.frequency.label("frequency"),
+        RawTelemetry.power_factor.label("power_factor"),
+        RawTelemetry.ch1.label("ch1"),
+        RawTelemetry.ch2.label("ch2"),
+        RawTelemetry.ch3.label("ch3"),
+        RawTelemetry.ch4.label("ch4"),
+        Device.name.label("device_name"),
+        Device.code.label("device_code"),
+    ).join(Device, RawTelemetry.device_id == Device.id).where(
+        RawTelemetry.device_id.in_(device_ids)
     )
-    rows = db.execute(query).all()
+
+    agg_select = select(
+        Telemetry.recorded_at.label("recorded_at"),
+        Telemetry.voltage.label("voltage"),
+        Telemetry.energy_kwh.label("energy_kwh"),
+        Telemetry.frequency.label("frequency"),
+        Telemetry.power_factor.label("power_factor"),
+        Telemetry.ch1.label("ch1"),
+        Telemetry.ch2.label("ch2"),
+        Telemetry.ch3.label("ch3"),
+        Telemetry.ch4.label("ch4"),
+        Device.name.label("device_name"),
+        Device.code.label("device_code"),
+    ).join(Device, Telemetry.device_id == Device.id).where(
+        Telemetry.device_id.in_(device_ids)
+    )
+
+    union_q = union_all(raw_select, agg_select).cte()
+
+    filters = []
+    if start:
+        filters.append(union_q.c.recorded_at >= _parse_dt(start))
+    if end:
+        filters.append(union_q.c.recorded_at <= _parse_dt(end))
+
+    rows = db.execute(
+        select(union_q)
+        .where(and_(*filters))
+        .order_by(union_q.c.recorded_at.desc())
+        .limit(limit)
+    ).all()
 
     wb = Workbook()
     ws = wb.active
@@ -228,24 +276,25 @@ def telemetry_csv(
     for cell in ws[1]:
         cell.font = bold
     col_tz = timezone(COL_TZ)
-    for telemetry, device in rows:
-        if telemetry.recorded_at:
-            col_time = telemetry.recorded_at.astimezone(col_tz)
+    for row in rows:
+        rec = row._mapping
+        if rec.recorded_at:
+            col_time = rec.recorded_at.astimezone(col_tz)
             fecha = col_time.strftime("%Y-%m-%d %H:%M:%S")
         else:
             fecha = ""
         ws.append([
-            device.name,
-            device.code,
+            rec.device_name,
+            rec.device_code,
             fecha,
-            telemetry.voltage,
-            telemetry.energy_kwh,
-            telemetry.frequency,
-            telemetry.power_factor,
-            telemetry.ch1,
-            telemetry.ch2,
-            telemetry.ch3,
-            telemetry.ch4,
+            rec.voltage,
+            rec.energy_kwh,
+            rec.frequency,
+            rec.power_factor,
+            rec.ch1,
+            rec.ch2,
+            rec.ch3,
+            rec.ch4,
         ])
 
     output = io.BytesIO()
@@ -290,29 +339,58 @@ def telemetry_range(
     if not organization_ids:
         return []
 
-    filters = [
-        Device.organization_id.in_(organization_ids),
-        Telemetry.recorded_at >= datetime.fromisoformat(start),
-        Telemetry.recorded_at <= datetime.fromisoformat(end),
-    ]
+    device_ids = list(db.scalars(
+        select(Device.id).where(Device.organization_id.in_(organization_ids))
+    ))
+    if not device_ids:
+        return []
+
+    raw_select = select(
+        RawTelemetry.device_id.label("device_id"),
+        RawTelemetry.recorded_at.label("recorded_at"),
+        RawTelemetry.voltage.label("voltage"),
+        RawTelemetry.energy_kwh.label("energy_kwh"),
+        RawTelemetry.frequency.label("frequency"),
+        RawTelemetry.power_factor.label("power_factor"),
+        RawTelemetry.ch1.label("ch1"),
+        RawTelemetry.ch2.label("ch2"),
+        RawTelemetry.ch3.label("ch3"),
+        RawTelemetry.ch4.label("ch4"),
+        Device.name.label("device_name"),
+        Device.code.label("device_code"),
+    ).join(Device, RawTelemetry.device_id == Device.id).where(
+        RawTelemetry.device_id.in_(device_ids)
+    )
+
+    agg_select = select(
+        Telemetry.device_id.label("device_id"),
+        Telemetry.recorded_at.label("recorded_at"),
+        Telemetry.voltage.label("voltage"),
+        Telemetry.energy_kwh.label("energy_kwh"),
+        Telemetry.frequency.label("frequency"),
+        Telemetry.power_factor.label("power_factor"),
+        Telemetry.ch1.label("ch1"),
+        Telemetry.ch2.label("ch2"),
+        Telemetry.ch3.label("ch3"),
+        Telemetry.ch4.label("ch4"),
+        Device.name.label("device_name"),
+        Device.code.label("device_code"),
+    ).join(Device, Telemetry.device_id == Device.id).where(
+        Telemetry.device_id.in_(device_ids)
+    )
+
+    union_q = union_all(raw_select, agg_select).cte()
+
+    filters = []
+    if start:
+        filters.append(union_q.c.recorded_at >= _parse_dt(start))
+    if end:
+        filters.append(union_q.c.recorded_at <= _parse_dt(end))
+
     rows = db.execute(
-        select(
-            Telemetry.device_id,
-            Telemetry.recorded_at,
-            Telemetry.voltage,
-            Telemetry.energy_kwh,
-            Telemetry.frequency,
-            Telemetry.power_factor,
-            Telemetry.ch1,
-            Telemetry.ch2,
-            Telemetry.ch3,
-            Telemetry.ch4,
-            Device.name.label("device_name"),
-            Device.code.label("device_code"),
-        )
-        .join(Device, Telemetry.device_id == Device.id)
+        select(union_q)
         .where(and_(*filters))
-        .order_by(Telemetry.recorded_at.desc())
+        .order_by(union_q.c.recorded_at.desc())
         .limit(limit)
     )
     return [dict(row._mapping) for row in rows]
