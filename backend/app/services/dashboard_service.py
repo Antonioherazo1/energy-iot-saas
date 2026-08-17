@@ -877,9 +877,10 @@ def get_hourly_energy(
                 total_current += ch
                 current_count += 1
         if current_count > 0:
+            avg_row_current = total_current / current_count
             col_time = row.recorded_at - timedelta(hours=5)
             key = bucket_time_key(col_time)
-            current_sums[key] = current_sums.get(key, Decimal("0")) + total_current
+            current_sums[key] = current_sums.get(key, Decimal("0")) + avg_row_current
             current_counts[key] = current_counts.get(key, 0) + 1
 
     result = []
