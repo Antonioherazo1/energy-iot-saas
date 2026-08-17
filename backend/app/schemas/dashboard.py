@@ -51,6 +51,7 @@ class HourlyEnergyRead(BaseModel):
     time: str
     energy_kwh: Decimal
     cost: Decimal
+    avg_current_a: Decimal
 
 
 class DashboardSummaryRead(BaseModel):

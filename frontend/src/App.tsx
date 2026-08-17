@@ -1232,7 +1232,7 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
         </div>
 
         <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
-          <Panel title="Consumo horario (acumulado del día)">
+          <Panel title="Consumo horario (corriente instantánea)">
             <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
               <label className="flex items-center gap-1">
                 <span className="text-slate-400">Día</span>
@@ -1261,9 +1261,9 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
               const labelInterval = Math.max(0, Math.ceil(timeSlots.length / 20) - 1);
               let cumKwh = 0;
               let cumCost = 0;
-              const slotMap = new Map<string, { kwh: number; cost: number }>();
+              const slotMap = new Map<string, { kwh: number; cost: number; current: number }>();
               for (const h of hourlyData) {
-                slotMap.set(h.time, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost) });
+                slotMap.set(h.time, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost), current: numeric(h.avg_current_a) });
               }
               const cumKwhData = timeSlots.map((t) => {
                 const entry = slotMap.get(t);
@@ -1275,11 +1275,17 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
                 if (entry) cumCost += entry.cost;
                 return cumCost;
               });
+              const currentData = timeSlots.map((t) => {
+                const entry = slotMap.get(t);
+                return entry ? entry.current : null;
+              });
               const totalKwh = cumKwh;
+              const latestCurrent = currentData.filter((v): v is number => v !== null).pop() ?? 0;
               return (
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-                    <p className="text-lg font-semibold text-ink">{totalKwh.toFixed(2)} <span className="text-sm font-normal text-slate-500">kWh total</span></p>
+                    <p className="text-lg font-semibold text-ink">{latestCurrent.toFixed(2)} <span className="text-sm font-normal text-slate-500">A actual</span></p>
+                    <p className="text-sm text-slate-500">{totalKwh.toFixed(2)} kWh · $ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumCost))}</p>
                   </div>
                   <Chart option={{
                     grid: { left: 52, right: 12, top: 42, bottom: 36 },
@@ -1296,8 +1302,9 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
                         const entry = slotMap.get(time);
                         const slotKwh = entry ? entry.kwh : 0;
                         const slotCost = entry ? entry.cost : 0;
+                        const slotCurrent = entry ? entry.current : 0;
                         const timeShort = hourlyBucketSeconds < 60 ? time.slice(0, 8) : time.slice(0, 5);
-                        return `<strong>${timeShort}</strong><br/>Intervalo: ${slotKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(slotCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
+                        return `<strong>${timeShort}</strong><br/>Corriente: ${slotCurrent.toFixed(2)} A<br/>Intervalo: ${slotKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(slotCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
                       },
                     },
                     xAxis: {
@@ -1313,7 +1320,7 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
                     yAxis: {
                       type: "value",
                       min: 0,
-                      name: "kWh",
+                      name: "A",
                       nameTextStyle: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
                       axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
                       splitLine: { lineStyle: { color: "#e4e8ef" } },
@@ -1323,7 +1330,7 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
                         type: "line",
                         smooth: true,
                         symbol: "none",
-                        data: cumKwhData,
+                        data: currentData,
                         lineStyle: { color: "#2563eb", width: 2.5 },
                         areaStyle: { color: "#2563eb", opacity: 0.08 },
                       },

@@ -832,7 +832,8 @@ def get_hourly_energy(
     rows = db.execute(
         select(Telemetry.device_id, Telemetry.recorded_at,
                Telemetry.ch1_energy_kwh, Telemetry.ch2_energy_kwh,
-               Telemetry.ch3_energy_kwh, Telemetry.ch4_energy_kwh)
+               Telemetry.ch3_energy_kwh, Telemetry.ch4_energy_kwh,
+               Telemetry.ch1, Telemetry.ch2, Telemetry.ch3, Telemetry.ch4)
         .where(
             Telemetry.device_id.in_(device_ids),
             Telemetry.recorded_at >= day_start,
@@ -854,6 +855,8 @@ def get_hourly_energy(
                (row.ch3_energy_kwh or Decimal("0")) + (row.ch4_energy_kwh or Decimal("0"))
 
     buckets: dict[str, Decimal] = {}
+    current_sums: dict[str, Decimal] = {}
+    current_counts: dict[str, int] = {}
     prev_by_device: dict[uuid.UUID, Decimal] = {}
 
     for row in rows:
@@ -867,12 +870,27 @@ def get_hourly_energy(
                 buckets[key] = buckets.get(key, Decimal("0")) + diff
         prev_by_device[row.device_id] = cur
 
+        total_current = Decimal("0")
+        current_count = 0
+        for ch in (row.ch1, row.ch2, row.ch3, row.ch4):
+            if ch is not None:
+                total_current += ch
+                current_count += 1
+        if current_count > 0:
+            col_time = row.recorded_at - timedelta(hours=5)
+            key = bucket_time_key(col_time)
+            current_sums[key] = current_sums.get(key, Decimal("0")) + total_current
+            current_counts[key] = current_counts.get(key, 0) + 1
+
     result = []
     for key in sorted(buckets.keys()):
         kwh = buckets[key]
+        cnt = current_counts.get(key, 1)
+        avg_current = current_sums.get(key, Decimal("0")) / cnt
         result.append({
             "time": key,
             "energy_kwh": kwh or Decimal("0"),
             "cost": kwh * kwh_rate,
+            "avg_current_a": avg_current,
         })
     return result

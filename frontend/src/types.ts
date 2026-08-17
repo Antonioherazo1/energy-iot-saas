@@ -97,4 +97,5 @@ export type HourlyEnergy = {
   time: string;
   energy_kwh: string;
   cost: string;
+  avg_current_a: string;
 };
