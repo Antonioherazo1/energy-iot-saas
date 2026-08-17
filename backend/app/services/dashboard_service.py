@@ -811,6 +811,13 @@ def get_hourly_energy(
         if not device_ids:
             return []
 
+    active_channels_by_device: dict[uuid.UUID, set[int]] = {}
+    for dc in db.execute(
+        select(DeviceChannel.device_id, DeviceChannel.channel_number)
+        .where(DeviceChannel.device_id.in_(device_ids), DeviceChannel.is_active == True)
+    ).all():
+        active_channels_by_device.setdefault(dc.device_id, set()).add(dc.channel_number)
+
     dt = datetime.fromisoformat(date)
     day_start = dt.replace(hour=5, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
     day_end = day_start + timedelta(days=1)
@@ -872,9 +879,11 @@ def get_hourly_energy(
 
         total_current = Decimal("0")
         current_count = 0
-        for ch in (row.ch1, row.ch2, row.ch3, row.ch4):
-            if ch is not None:
-                total_current += ch
+        active_chs = active_channels_by_device.get(row.device_id, set())
+        ch_values = {1: row.ch1, 2: row.ch2, 3: row.ch3, 4: row.ch4}
+        for ch_num, ch_val in ch_values.items():
+            if ch_val is not None and (not active_chs or ch_num in active_chs):
+                total_current += ch_val
                 current_count += 1
         if current_count > 0:
             avg_row_current = total_current / current_count
