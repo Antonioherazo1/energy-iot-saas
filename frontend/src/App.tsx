@@ -15,7 +15,6 @@ import {
   getDailyEnergy,
   getDeviceChannels,
   getDeviceStatus,
-  getHourlyEnergy,
   getLatestTelemetry,
   getMonthlyEnergy,
   getOrganizations,
@@ -47,7 +46,7 @@ import {
   getLastMqttMessages,
   getTelemetryHealth,
 } from "./lib/api";
-import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, HourlyEnergy, LatestTelemetry, Organization, User } from "./types";
+import type { DashboardSummary, DeviceChannel, DeviceStatus, EnergyBucket, LatestTelemetry, Organization, User } from "./types";
 import type { TelemetryHealth } from "./lib/api";
 
 const tokenKey = "energy_iot_access_token";
@@ -177,12 +176,6 @@ const [channelCustomDate, setChannelCustomDate] = useState(() => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 });
-const [hourlyDate, setHourlyDate] = useState(() => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-});
-const [hourlyData, setHourlyData] = useState<HourlyEnergy[]>([]);
-const [hourlyBucketSeconds, setHourlyBucketSeconds] = useState(600);
 const [esp32Config, setEsp32Config] = useState<Record<string, any> | null>(null);
 const [esp32Cached, setEsp32Cached] = useState(false);
 const [esp32Loading, setEsp32Loading] = useState(false);
@@ -499,33 +492,6 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
     return () => window.clearInterval(ltInterval);
   }, [token]);
 
-  async function loadHourlyData() {
-    if (!token) return;
-    try {
-      const now = new Date();
-      const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-      const isToday = hourlyDate === todayLocal;
-      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const elapsedMs = now.getTime() - midnight.getTime();
-      const elapsedHours = elapsedMs / (1000 * 60 * 60);
-
-      let bucketSec = 600;
-      if (isToday) {
-        if (elapsedHours < 1) bucketSec = 30;
-        else if (elapsedHours < 3) bucketSec = 60;
-        else if (elapsedHours < 6) bucketSec = 300;
-      }
-      setHourlyBucketSeconds(bucketSec);
-      const data = await getHourlyEnergy(token, hourlyDate, bucketSec, selectedDeviceId ?? undefined);
-      setHourlyData(data);
-    } catch { /* ignore */ }
-  }
-
-  useEffect(() => {
-    if (!token || !user || onboardingStep >= 1 && onboardingStep <= 3) return;
-    void loadHourlyData();
-  }, [token, user, onboardingStep, hourlyDate, selectedDeviceId]);
-
   async function loadBillingData() {
     if (!token) return;
     try {
@@ -552,7 +518,6 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
     }
     const interval = window.setInterval(() => {
       void loadDashboard(token);
-      void loadHourlyData();
     }, 10000);
     return () => window.clearInterval(interval);
   }, [token, user, onboardingStep]);
@@ -1228,117 +1193,6 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
             {channelMode === "10min" || channelMode === "1hour" ? (
               <div style={{ zoom: rowFontScales.row3 / 100 }} className="mt-1 text-xs text-slate-400">· actualiza cada 5s</div>
             ) : null}
-          </Panel>
-        </div>
-
-        <div style={{ zoom: rowFontScales.row5 / 100 }} className="mt-6">
-          <Panel title="Consumo horario (corriente instantánea)">
-            <div className="-mt-2 mb-4 flex flex-wrap items-center gap-3 text-xs">
-              <label className="flex items-center gap-1">
-                <span className="text-slate-400">Día</span>
-                <input className="h-8 w-36 rounded border border-line px-2 text-xs outline-none focus:border-brand" type="date" value={hourlyDate} onChange={(e) => setHourlyDate(e.target.value)} />
-              </label>
-              <span className="text-slate-300">{hourlyData.length} registros</span>
-            </div>
-            {(() => {
-              if (hourlyData.length === 0) {
-                return <div className="flex items-center justify-center py-8 text-sm text-slate-500">Sin datos para esta fecha</div>;
-              }
-              const nowLocal = new Date();
-              const todayStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, "0")}-${String(nowLocal.getDate()).padStart(2, "0")}`;
-              const isToday = hourlyDate === todayStr;
-              const elapsedSec = nowLocal.getHours() * 3600 + nowLocal.getMinutes() * 60 + nowLocal.getSeconds();
-              const totalDaySlots = Math.ceil(86400 / hourlyBucketSeconds);
-              const maxSlots = isToday ? Math.ceil(elapsedSec / hourlyBucketSeconds) + 1 : totalDaySlots;
-              const timeSlots: string[] = [];
-              for (let i = 0; i < maxSlots; i++) {
-                const totalSec = i * hourlyBucketSeconds;
-                const h = Math.floor(totalSec / 3600);
-                const m = Math.floor((totalSec % 3600) / 60);
-                const s = totalSec % 60;
-                timeSlots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
-              }
-              const labelInterval = Math.max(0, Math.ceil(timeSlots.length / 20) - 1);
-              let cumKwh = 0;
-              let cumCost = 0;
-              const slotMap = new Map<string, { kwh: number; cost: number; current: number }>();
-              for (const h of hourlyData) {
-                slotMap.set(h.time, { kwh: numeric(h.energy_kwh), cost: numeric(h.cost), current: numeric(h.avg_current_a) });
-              }
-              const cumKwhData = timeSlots.map((t) => {
-                const entry = slotMap.get(t);
-                if (entry) cumKwh += entry.kwh;
-                return cumKwh;
-              });
-              const cumCostData = timeSlots.map((t) => {
-                const entry = slotMap.get(t);
-                if (entry) cumCost += entry.cost;
-                return cumCost;
-              });
-              const currentData = timeSlots.map((t) => {
-                const entry = slotMap.get(t);
-                return entry ? entry.current : null;
-              });
-              const totalKwh = cumKwh;
-              const latestCurrent = currentData.filter((v): v is number => v !== null).pop() ?? 0;
-              return (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-                    <p className="text-lg font-semibold text-ink">{latestCurrent.toFixed(2)} <span className="text-sm font-normal text-slate-500">A actual</span></p>
-                    <p className="text-sm text-slate-500">{totalKwh.toFixed(2)} kWh · $ {Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumCost))}</p>
-                  </div>
-                  <Chart option={{
-                    grid: { left: 52, right: 12, top: 42, bottom: 36 },
-                    tooltip: {
-                      trigger: "axis",
-                      enterable: true,
-                      confine: true,
-                      formatter: (params: any) => {
-                        const p = params[0];
-                        const time = p.name;
-                        const idx = timeSlots.indexOf(time);
-                        const cumK = cumKwhData[idx];
-                        const cumC = cumCostData[idx];
-                        const entry = slotMap.get(time);
-                        const slotKwh = entry ? entry.kwh : 0;
-                        const slotCost = entry ? entry.cost : 0;
-                        const slotCurrent = entry ? entry.current : 0;
-                        const timeShort = hourlyBucketSeconds < 60 ? time.slice(0, 8) : time.slice(0, 5);
-                        return `<strong>${timeShort}</strong><br/>Corriente: ${slotCurrent.toFixed(2)} A<br/>Intervalo: ${slotKwh.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(slotCost))}<br/>Acumulado: ${cumK.toFixed(2)} kWh · $ ${Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Math.round(cumC))}`;
-                      },
-                    },
-                    xAxis: {
-                      type: "category",
-                      data: timeSlots,
-                      axisLabel: {
-                        color: "#526071",
-                        fontSize: lsz(11, rowFontScales.chart),
-                        interval: labelInterval,
-                        formatter: (v: string) => hourlyBucketSeconds >= 600 && v.endsWith(":00") ? v.slice(0, 2) : v.slice(0, 5),
-                      },
-                    },
-                    yAxis: {
-                      type: "value",
-                      min: 0,
-                      name: "A",
-                      nameTextStyle: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                      axisLabel: { color: "#526071", fontSize: lsz(11, rowFontScales.chart) },
-                      splitLine: { lineStyle: { color: "#e4e8ef" } },
-                    },
-                    series: [
-                      {
-                        type: "line",
-                        smooth: true,
-                        symbol: "none",
-                        data: currentData,
-                        lineStyle: { color: "#2563eb", width: 2.5 },
-                        areaStyle: { color: "#2563eb", opacity: 0.08 },
-                      },
-                    ],
-                  }} />
-                </div>
-              );
-            })()}
           </Panel>
         </div>
 
