@@ -359,7 +359,7 @@ export interface TelemetryHealth {
   device_id: string;
   hours: number;
   total_records: number;
-  gaps: Array<{ from: string; to: string; duration_sec: number; records_after: number }>;
+  gaps: Array<{ from: string; to: string; duration_sec: number; recovered: number }>;
   buffer_events: Array<{ timestamp: string; interval_sec: number; normal_interval_sec: number }>;
   avg_interval_sec: number | null;
 }

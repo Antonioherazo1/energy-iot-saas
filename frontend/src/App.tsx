@@ -396,11 +396,16 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
   useEffect(() => {
     if (selectedDeviceId) {
       void loadDeviceChannels(selectedDeviceId);
-      if (token) {
-        getTelemetryHealth(token, selectedDeviceId, 24).then(setTelemetryHealth).catch(() => setTelemetryHealth(null));
-      }
     }
   }, [selectedDeviceId]);
+
+  useEffect(() => {
+    if (!token || !selectedDeviceId) return;
+    const refresh = () => getTelemetryHealth(token, selectedDeviceId, 24).then(setTelemetryHealth).catch(() => {});
+    void refresh();
+    const hInterval = window.setInterval(refresh, 30000);
+    return () => window.clearInterval(hInterval);
+  }, [token, selectedDeviceId]);
 
   useEffect(() => {
     if (selectedDeviceId) {
@@ -1028,13 +1033,14 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
                   {telemetryHealth.gaps.map((g, i) => {
                     const dur = g.duration_sec;
                     const durStr = dur > 3600 ? `${(dur / 3600).toFixed(1)}h` : `${Math.round(dur / 60)}min`;
-                    const fromLocal = new Date(g.from).toLocaleString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: false });
-                    const toLocal = new Date(g.to).toLocaleString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: false });
+                    const fmtTs = (iso: string) => new Date(iso).toLocaleString("es-CO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
                     return (
-                      <div key={i} className="flex justify-between py-0.5 text-xs">
-                        <span className="text-slate-600">{fromLocal} → {toLocal}</span>
+                      <div key={i} className="flex flex-wrap justify-between gap-x-3 py-0.5 text-xs">
+                        <span className="text-slate-600">{fmtTs(g.from)} → {fmtTs(g.to)}</span>
                         <span className="font-medium text-amber-600">{durStr} offline</span>
-                        <span className="text-slate-400">{g.records_after} reg. despues</span>
+                        {g.recovered > 0 && (
+                          <span className="text-blue-500">{g.recovered} recuperados del buffer</span>
+                        )}
                       </div>
                     );
                   })}

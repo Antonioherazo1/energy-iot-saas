@@ -127,27 +127,33 @@ async def get_telemetry_health(device_id: str, hours: int = 24, user=Depends(get
                 "avg_interval_sec": None,
             }
 
+        def _utc(ts: datetime) -> datetime:
+            return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+
         gaps = []
         buffer_events = []
         intervals = []
 
         for i in range(1, len(rows)):
-            prev_ts = rows[i - 1]
-            curr_ts = rows[i]
-            if prev_ts.tzinfo is None:
-                prev_ts = prev_ts.replace(tzinfo=timezone.utc)
-            if curr_ts.tzinfo is None:
-                curr_ts = curr_ts.replace(tzinfo=timezone.utc)
+            prev_ts = _utc(rows[i - 1])
+            curr_ts = _utc(rows[i])
             delta = (curr_ts - prev_ts).total_seconds()
 
             intervals.append(delta)
 
             if delta > 300:
+                recovered = 0
+                j = i
+                while j < len(rows) and recovered < 500:
+                    if j > i and (_utc(rows[j]) - _utc(rows[j - 1])).total_seconds() > 15:
+                        break
+                    recovered += 1
+                    j += 1
                 gaps.append({
                     "from": prev_ts.isoformat(),
                     "to": curr_ts.isoformat(),
                     "duration_sec": int(delta),
-                    "records_after": min(20, len(rows) - i),
+                    "recovered": recovered,
                 })
 
             if i >= 3:
