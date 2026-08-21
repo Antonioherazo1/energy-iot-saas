@@ -6,6 +6,50 @@ static File sendingFile;
 static bool sendingMode = false;
 static bool fsOk = false;
 
+// Si el dispositivo se reinicio a mitad de un envio, BUFFER_SENDING contiene
+// registros aun no confirmados (los mas antiguos). En vez de borrarlos se
+// fusionan con BUFFER_FILE manteniendo el orden cronologico.
+static void recuperarEnvioInterrumpido() {
+  if (!LittleFS.exists(BUFFER_SENDING)) return;
+  if (!LittleFS.exists(BUFFER_FILE)) {
+    if (LittleFS.rename(BUFFER_SENDING, BUFFER_FILE)) {
+      Serial.println("Envio interrumpido recuperado");
+    }
+    return;
+  }
+  LittleFS.remove(BUFFER_MERGED);
+  File dst = LittleFS.open(BUFFER_MERGED, "w");
+  if (!dst) {
+    LittleFS.remove(BUFFER_FILE);
+    LittleFS.rename(BUFFER_SENDING, BUFFER_FILE);
+    Serial.println("Sin espacio para fusionar: se conservo el envio antiguo");
+    return;
+  }
+  uint8_t chunk[256];
+  const char* fuentes[2] = { BUFFER_SENDING, BUFFER_FILE };
+  for (int i = 0; i < 2; i++) {
+    File src = LittleFS.open(fuentes[i], "r");
+    if (src) {
+      while (src.available()) {
+        int n = src.read(chunk, sizeof(chunk));
+        if (n <= 0) break;
+        dst.write(chunk, n);
+      }
+      src.close();
+    }
+  }
+  size_t total = dst.size();
+  size_t valid = total - (total % BUFFER_RECORD_SIZE);
+  dst.close();
+  LittleFS.remove(BUFFER_FILE);
+  LittleFS.remove(BUFFER_SENDING);
+  if (LittleFS.rename(BUFFER_MERGED, BUFFER_FILE)) {
+    Serial.print("Buffer fusionado tras reinicio: ");
+    Serial.print(valid / BUFFER_RECORD_SIZE);
+    Serial.println(" registros");
+  }
+}
+
 bool iniciarStorage() {
   if (LittleFS.begin()) {
     fsOk = true;
@@ -14,10 +58,16 @@ bool iniciarStorage() {
     Serial.println("LittleFS no disponible - buffer desactivado");
     return false;
   }
-  if (LittleFS.exists(BUFFER_SENDING)) {
-    LittleFS.remove(BUFFER_SENDING);
-  }
+  recuperarEnvioInterrumpido();
   return true;
+}
+
+size_t storageTotalBytes() {
+  return fsOk ? LittleFS.totalBytes() : 0;
+}
+
+size_t storageFreeBytes() {
+  return fsOk ? (LittleFS.totalBytes() - LittleFS.usedBytes()) : 0;
 }
 
 bool guardarLectura(uint32_t epoch, float ch1, float ch2, float ch3, float ch4) {

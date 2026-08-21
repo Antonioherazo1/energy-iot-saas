@@ -10,6 +10,9 @@ int leerTodasLecturas(uint8_t* buffer, int maxBytes);
 int contarRegistrosPendientes();
 void limpiarBuffer();
 
+size_t storageTotalBytes();
+size_t storageFreeBytes();
+
 bool iniciarEnvioBuffer();
 int leerBufferBatch(uint8_t* buffer, int maxRecords);
 bool hayEnvioPendiente();

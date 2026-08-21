@@ -22,11 +22,19 @@ inline const float CALIB_DEFAULT = 1.0;
 inline const float VOLTAJE_DEFAULT = 120.0;
 inline const int INTERVALO_DEFAULT = 2000;
 
-// Buffer
+// Buffer (LittleFS)
+// Registro binario de 20 bytes: epoch(4) + ch1..ch4 float(16)
+// Capacidad aproximada con particion LittleFS de 1MB: >50.000 registros (~29h a 2s)
+// Con particion minima de 190KB: ~9.500 registros (~5h a 2s, ~13h a 5s)
 #define BUFFER_FILE "/buffer.dat"
 #define BUFFER_SENDING "/buffer_sending.dat"
+#define BUFFER_MERGED "/buffer_merged.dat"
 #define CONFIG_FILE "/config.json"
 #define BUFFER_RECORD_SIZE 20
+
+// Cuando no hay conexion, guardar como maximo una lectura por este periodo (ms).
+// Reduce el uso de flash sin perder resolucion util para las graficas.
+#define BUFFER_OFFLINE_MIN_MS 5000
 
 struct Configuracion {
   float calibracion[4];

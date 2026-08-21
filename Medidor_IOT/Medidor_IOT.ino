@@ -10,6 +10,8 @@
 
 String deviceID;
 unsigned long ultimaLectura = 0;
+unsigned long ultimoDrenaje = 0;
+uint32_t ultimoEpochBufferizado = 0;
 static const int MAX_ENVIO_BUFFER = 15;
 
 String safeFloat(float v) {
@@ -31,7 +33,7 @@ void setup() {
   iniciarSensor();
   iniciarTiempo();
 
-  Serial.println("Sistema iniciado v2.2");
+  Serial.println("Sistema iniciado v2.5");
   Serial.print("Device ID: ");
   Serial.println(deviceID);
 }
@@ -61,9 +63,9 @@ void enviarBatch() {
     payload += safeFloat(ch3);
     payload += ",\"ch4\":";
     payload += safeFloat(ch4);
-    payload += ",\"fw\":\"2.2\",\"tz_offset\":-5}";
+    payload += ",\"fw\":\"2.5\",\"tz_offset\":-5}";
     publicarMQTT(payload);
-    delay(50);
+    delay(20);
   }
   if (count > 0) {
     Serial.print("Buffer enviados: ");
@@ -77,6 +79,23 @@ void loop() {
   loopMQTT();
 
   unsigned long ahora = millis();
+
+  // Drenado rapido del buffer: independiente del intervalo de medicion.
+  // ~15 registros cada 300ms => ~45 reg/s; un buffer de 10h (18.000 reg a 2s) drena en ~7 min.
+  if (client.connected() && contarRegistrosPendientes() > 0) {
+    if (ahora - ultimoDrenaje >= 300) {
+      ultimoDrenaje = ahora;
+      if (!hayEnvioPendiente()) {
+        iniciarEnvioBuffer();
+      }
+      if (hayEnvioPendiente()) {
+        enviarBatch();
+        return;
+      }
+    }
+    return;
+  }
+
   if (ahora - ultimaLectura < (unsigned long)configApp.intervalo) return;
   ultimaLectura = ahora;
 
@@ -87,42 +106,31 @@ void loop() {
   uint32_t epoch = obtenerUnixTime();
   bool tsValido = tiempoValido();
 
-  if (conectado) {
-    if (contarRegistrosPendientes() > 0) {
-      if (!hayEnvioPendiente()) {
-        iniciarEnvioBuffer();
-      }
-      if (hayEnvioPendiente()) {
-        enviarBatch();
-        return;
-      }
-    }
+  if (conectado && tsValido) {
+    String hora = formatearEpoch(epoch);
+    String payload = "{";
+    payload += "\"device_id\":\"";
+    payload += deviceID;
+    payload += "\",";
+    payload += "\"timestamp\":\"";
+    payload += hora;
+    payload += "\",";
+    payload += "\"ch1\":";
+    payload += safeFloat(corrientes[0]);
+    payload += ",";
+    payload += "\"ch2\":";
+    payload += safeFloat(corrientes[1]);
+    payload += ",";
+    payload += "\"ch3\":";
+    payload += safeFloat(corrientes[2]);
+    payload += ",";
+    payload += "\"ch4\":";
+    payload += safeFloat(corrientes[3]);
+    payload += ",\"fw\":\"2.5\",\"tz_offset\":-5}";
 
-    if (tsValido) {
-      String hora = formatearEpoch(epoch);
-      String payload = "{";
-      payload += "\"device_id\":\"";
-      payload += deviceID;
-      payload += "\",";
-      payload += "\"timestamp\":\"";
-      payload += hora;
-      payload += "\",";
-      payload += "\"ch1\":";
-      payload += safeFloat(corrientes[0]);
-      payload += ",";
-      payload += "\"ch2\":";
-      payload += safeFloat(corrientes[1]);
-      payload += ",";
-      payload += "\"ch3\":";
-      payload += safeFloat(corrientes[2]);
-      payload += ",";
-      payload += "\"ch4\":";
-      payload += safeFloat(corrientes[3]);
-      payload += ",\"fw\":\"2.4\",\"tz_offset\":-5}";
-
-      publicarMQTT(payload);
-    }
-  } else if (tsValido) {
+    publicarMQTT(payload);
+  } else if (tsValido && epoch >= ultimoEpochBufferizado + BUFFER_OFFLINE_MIN_MS / 1000) {
+    ultimoEpochBufferizado = epoch;
     guardarLectura(epoch, corrientes[0], corrientes[1], corrientes[2], corrientes[3]);
     Serial.print("Sin conexion. Buffer: ");
     Serial.println(contarRegistrosPendientes());

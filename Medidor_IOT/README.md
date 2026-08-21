@@ -161,11 +161,15 @@ Cada lectura ocupa 20 bytes:
 
 ### Comportamiento en reconexión
 
-1. Cuando se pierde conexión: las lecturas se acumulan en `buffer.dat`
+1. Cuando se pierde conexión: las lecturas se acumulan en `buffer.dat` (máximo una por `BUFFER_OFFLINE_MIN_MS`, por defecto 5s)
 2. Al reconectar: se renombra `buffer.dat` → `buffer_sending.dat` y se crea un `buffer.dat` nuevo
-3. Cada ciclo de lectura se envían hasta **15 registros** del archivo de envío
+3. El drenado es independiente del intervalo de medición: hasta **15 registros cada 300 ms** (~45 reg/s); un buffer de 10 h drena en ~7 min
 4. Las lecturas nuevas durante el drenaje se guardan en el nuevo `buffer.dat`
 5. Cuando `buffer_sending.dat` se vacía, se elimina y el ciclo continúa con el siguiente lote
+
+### Recuperación tras reinicio
+
+Si el dispositivo se reinicia a mitad de un envío, `buffer_sending.dat` no se descarta: al arrancar se fusiona con `buffer.dat` manteniendo el orden cronológico (`recuperarEnvioInterrumpido`). Los bytes residuales incompletos (<20 B) se truncan.
 
 ### Límite de espacio
 
