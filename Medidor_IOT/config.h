@@ -8,6 +8,8 @@
 // MQTT
 inline const char* MQTT_SERVER = "thinc.site";
 inline const int MQTT_PORT = 1883;
+inline const char* MQTT_USER = "medidor";
+inline const char* MQTT_PASS = "Mqt7!pEnergia2026";
 
 // Topics
 inline const char* TOPIC_DATOS = "energia/datos";

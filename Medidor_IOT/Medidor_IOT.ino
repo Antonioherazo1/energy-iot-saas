@@ -33,7 +33,7 @@ void setup() {
   iniciarSensor();
   iniciarTiempo();
 
-  Serial.println("Sistema iniciado v2.5");
+  Serial.println("Sistema iniciado v2.6");
   Serial.print("Device ID: ");
   Serial.println(deviceID);
 }
@@ -63,7 +63,7 @@ void enviarBatch() {
     payload += safeFloat(ch3);
     payload += ",\"ch4\":";
     payload += safeFloat(ch4);
-    payload += ",\"fw\":\"2.5\",\"tz_offset\":-5}";
+    payload += ",\"fw\":\"2.6\",\"tz_offset\":-5}";
     publicarMQTT(payload);
     delay(20);
   }
@@ -126,7 +126,7 @@ void loop() {
     payload += ",";
     payload += "\"ch4\":";
     payload += safeFloat(corrientes[3]);
-    payload += ",\"fw\":\"2.5\",\"tz_offset\":-5}";
+    payload += ",\"fw\":\"2.6\",\"tz_offset\":-5}";
 
     publicarMQTT(payload);
   } else if (tsValido && epoch >= ultimoEpochBufferizado + BUFFER_OFFLINE_MIN_MS / 1000) {

@@ -270,7 +270,7 @@ bool conectarMQTT() {
 
   Serial.print("Conectando MQTT...");
   client.setBufferSize(512);
-  if (client.connect(("ESP32_" + deviceID).c_str())) {
+  if (client.connect(("ESP32_" + deviceID).c_str(), MQTT_USER, MQTT_PASS)) {
     Serial.println("conectado");
     String topicComando = String(TOPIC_COMANDO) + deviceID;
     client.subscribe(topicComando.c_str());
