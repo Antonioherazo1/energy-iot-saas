@@ -1,0 +1,48 @@
+name: Deploy a EC2
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Que desplegar"
+        required: true
+        default: frontend
+        type: choice
+        options:
+          - frontend
+          - backend
+          - ambos
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/energy-iot-saas
+            sudo git pull origin main
+
+            if [ "${{ inputs.target }}" = "frontend" ] || [ "${{ inputs.target }}" = "ambos" ]; then
+              cd frontend
+              if [ ! -d node_modules ]; then sudo npm ci --silent; fi
+              sudo npm run build --silent > /dev/null
+              sudo rm -rf /var/www/thinc/assets /var/www/thinc/index.html
+              sudo cp -r dist/assets /var/www/thinc/assets
+              sudo cp -f dist/index.html /var/www/thinc/index.html
+              sudo cp -rf dist/icons /var/www/thinc/ 2>/dev/null || true
+              cd ..
+            fi
+
+            if [ "${{ inputs.target }}" = "backend" ] || [ "${{ inputs.target }}" = "ambos" ]; then
+              cd backend
+              sudo docker compose build api 2>&1 | tail -2
+              sudo docker compose up -d api
+            fi
+
+            curl -fsS http://localhost:8000/api/v1/health && echo " <- API OK"
