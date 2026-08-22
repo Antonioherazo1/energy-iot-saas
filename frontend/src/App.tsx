@@ -88,7 +88,7 @@ function getEnergyKwh(channelNumber: number, channelDailyEnergy: { channel_numbe
 }
 
 export default function App() {
-  const [token, setToken] = useState(() => sessionStorage.getItem(tokenKey) ?? "");
+  const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? "");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -238,8 +238,8 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar el dashboard");
       setUser(null);
-      sessionStorage.removeItem(tokenKey);
-      sessionStorage.removeItem(refreshKey);
+      localStorage.removeItem(tokenKey);
+      localStorage.removeItem(refreshKey);
       setToken("");
     } finally {
       setLoading(false);
@@ -254,8 +254,8 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
       const response = authMode === "login"
         ? await login(email, password)
         : await signup(email, password, fullName.trim(), orgName.trim());
-      sessionStorage.setItem(tokenKey, response.access_token);
-      sessionStorage.setItem(refreshKey, response.refresh_token);
+      localStorage.setItem(tokenKey, response.access_token);
+      localStorage.setItem(refreshKey, response.refresh_token);
       setToken(response.access_token);
       if (authMode === "signup") {
         const currentUser = await getCurrentUser(response.access_token);
@@ -274,8 +274,8 @@ const [telemetryHealth, setTelemetryHealth] = useState<TelemetryHealth | null>(n
   }
 
   function logout() {
-    sessionStorage.removeItem(tokenKey);
-    sessionStorage.removeItem(refreshKey);
+    localStorage.removeItem(tokenKey);
+    localStorage.removeItem(refreshKey);
     setToken("");
     setUser(null);
     setPassword("");

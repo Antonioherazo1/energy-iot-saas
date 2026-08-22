@@ -35,7 +35,7 @@ export function getDashboardWebSocketUrl(): string {
 }
 
 async function attemptRefresh(): Promise<string | null> {
-  const refreshToken = sessionStorage.getItem(REFRESH_KEY);
+  const refreshToken = localStorage.getItem(REFRESH_KEY);
   if (!refreshToken) return null;
 
   try {
@@ -45,19 +45,19 @@ async function attemptRefresh(): Promise<string | null> {
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
     if (!res.ok) {
-      sessionStorage.removeItem(ACCESS_KEY);
-      sessionStorage.removeItem(REFRESH_KEY);
+      localStorage.removeItem(ACCESS_KEY);
+      localStorage.removeItem(REFRESH_KEY);
       return null;
     }
     const data: TokenResponse & { refresh_token?: string } = await res.json();
-    sessionStorage.setItem(ACCESS_KEY, data.access_token);
+    localStorage.setItem(ACCESS_KEY, data.access_token);
     if (data.refresh_token) {
-      sessionStorage.setItem(REFRESH_KEY, data.refresh_token);
+      localStorage.setItem(REFRESH_KEY, data.refresh_token);
     }
     return data.access_token;
   } catch {
-    sessionStorage.removeItem(ACCESS_KEY);
-    sessionStorage.removeItem(REFRESH_KEY);
+    localStorage.removeItem(ACCESS_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     return null;
   }
 }
@@ -67,7 +67,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     "Content-Type": "application/json",
     ...options.headers,
   };
-  const token = options.token ?? sessionStorage.getItem(ACCESS_KEY);
+  const token = options.token ?? localStorage.getItem(ACCESS_KEY);
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
