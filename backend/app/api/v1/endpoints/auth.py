@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,12 +13,14 @@ from app.models.user import RefreshToken, User
 from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserRead
 from app.services.auth_service import hash_refresh_token
+from app.services.rate_limiter import enforce_auth_rate_limit
 
 router = APIRouter()
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
+    enforce_auth_rate_limit(request, f"register:{payload.email.lower()}")
     existing_user = db.scalar(select(User).where(User.email == payload.email.lower()))
     if existing_user:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -48,7 +50,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenRe
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
+    enforce_auth_rate_limit(request, f"login:{payload.email.lower()}")
     user = db.scalar(select(User).where(User.email == payload.email.lower(), User.is_active.is_(True)))
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
